@@ -1,5 +1,5 @@
-encoder_dim: 52
+encoder_dim: 2048
 
 decoder_dim: 512
 
-vocab_size: 2193
+vocab_size: 2190

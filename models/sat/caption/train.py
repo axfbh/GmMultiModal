@@ -51,4 +51,6 @@ class CaptionTrainer(BaseTrainer):
             pad_img[: c, : h, : w].copy_(img)
 
         batch[0] = tensor
+        batch[1] = torch.stack(batch[1])
+        batch[2] = torch.stack(batch[2])
         return batch
