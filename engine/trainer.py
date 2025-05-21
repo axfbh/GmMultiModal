@@ -165,7 +165,7 @@ class BaseTrainer(LightningModule):
         self.manual_backward(self.scaler.scale(loss))
 
         if ni - self.last_opt_step >= self.trainer.accumulate_grad_batches:
-            self.optim_encoder_step()
+            # self.optim_encoder_step()
             self.optim_decoder_step()
             if self.ema:
                 self.ema.update(self.model)
@@ -181,7 +181,7 @@ class BaseTrainer(LightningModule):
     def optim_decoder_step(self):
         optim = self.optimizers()[1]
         self.scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(self.model.decoder.parameters(), max_norm=10.0)  # clip gradients
+        torch.nn.utils.clip_grad_norm_(self.model.decoder.parameters(), max_norm=5.0)  # clip gradients
         self.scaler.step(optim)
         self.scaler.update()
         optim.zero_grad()
