@@ -1,0 +1,19 @@
+train:
+  image: G:\cgm\dataset\Flickr8k and Flickr8kCN\Flicker8k_Dataset
+  ann: G:\cgm\dataset\Flickr8k and Flickr8kCN\Flickr8k.lemma.token.txt
+
+
+#train:
+#  image: G:\cgm\dataset\coco_sub_dog\train2017
+#  ann: G:\cgm\dataset\coco_sub_dog\annotations\instances_train2017.json
+#val:
+#  image: G:\cgm\dataset\coco_sub_dog\val2017
+#  ann: G:\cgm\dataset\coco_sub_dog\annotations\instances_val2017.json
+
+
+#train:
+#  image: E:\dataset\coco_sub_dog\train2017
+#  ann: E:\dataset\coco_sub_dog\annotations\instances_train2017.json
+#val:
+#  image: E:\dataset\coco_sub_dog\val2017
+#  ann: E:\dataset\coco_sub_dog\annotations\instances_val2017.json

@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from omegaconf import OmegaConf
 
 import torch
@@ -17,9 +18,16 @@ class BaseTrainer(LightningModule):
     def __init__(self, cfg):
         super(BaseTrainer, self).__init__()
 
+        self.ema = None
+
         self.data = None
         self.train_set = None
-        self.val_set = None
+        self.train_dataset = None
+        self.train_loader = None
+
+        self.lr_lambda = None
+        self.lightning_trainer = None
+
         self.args = cfg
         self.batch_size = self.args.batch
         self.epochs = self.args.epochs
@@ -77,16 +85,90 @@ class BaseTrainer(LightningModule):
     def configure_optimizers(self) -> OptimizerLRScheduler:
         accumulate = max(round(self.args.nbs / self.batch_size), 1)
         weight_decay = self.args.weight_decay * self.batch_size * accumulate / self.args.nbs
-        optimizer = smart_optimizer(self,
-                                    self.args.optimizer,
-                                    self.args.lr0,
-                                    self.args.momentum,
-                                    weight_decay)
+
+        optimizer1 = smart_optimizer(self.encoder,
+                                     self.args.optimizer,
+                                     self.args.lr0,
+                                     self.args.momentum,
+                                     weight_decay)
+        optimizer2 = smart_optimizer(self.decoder,
+                                     self.args.optimizer,
+                                     self.args.lr0,
+                                     self.args.momentum,
+                                     weight_decay)
 
         self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
 
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                      last_epoch=self.current_epoch - 1,
-                                                      lr_lambda=self.lr_lambda)
+        scheduler1 = torch.optim.lr_scheduler.LambdaLR(optimizer1,
+                                                       last_epoch=self.current_epoch - 1,
+                                                       lr_lambda=self.lr_lambda)
 
-        return [optimizer], [scheduler]
+        scheduler2 = torch.optim.lr_scheduler.LambdaLR(optimizer1,
+                                                       last_epoch=self.current_epoch - 1,
+                                                       lr_lambda=self.lr_lambda)
+
+        return [optimizer1, optimizer2], [scheduler1, scheduler2]
+
+    def configure_model(self) -> None:
+        self.model.device = self.device
+        self.model.args = self.args
+
+    def on_train_start(self) -> None:
+        self.ema = ModelEMA(self.model, updates=self.args.updates)
+
+    def on_train_batch_start(self, batch: Any, batch_idx: int):
+        epoch = self.current_epoch
+        ni = batch_idx + self.batch_size * epoch
+        nw = max(round(self.batch_size * self.args.warmup_epochs), 100)
+
+        if ni <= nw:
+            ratio = ni / nw
+            interpolated_accumulate = 1 + (self.args.nbs / self.batch_size - 1) * ratio
+            self.trainer.accumulate_grad_batches = max(1, round(interpolated_accumulate))
+            for optim in self.optimizers():
+                for j, param_group in enumerate(optim.param_groups):
+                    # 学习率线性插值
+                    lr_start = self.args.warmup_bias_lr if j == 0 else 0.0
+                    lr_end = param_group["initial_lr"] * self.lr_lambda(epoch)
+                    param_group["lr"] = lr_start + (lr_end - lr_start) * ratio
+
+                    if "momentum" in param_group:
+                        param_group["momentum"] = self.args.warmup_momentum + (
+                                self.args.momentum - self.args.warmup_momentum) * ratio
+
+    def forward(self, batch):
+        return self.model(batch)
+
+    def training_step(self, batch, batch_idx):
+        loss, loss_dict = self(batch)
+
+        self.log_dict(loss_dict,
+                      on_step=True,
+                      on_epoch=True,
+                      sync_dist=True,
+                      prog_bar=True,
+                      rank_zero_only=True,
+                      batch_size=self.batch_size)
+
+        return loss * self.trainer.accumulate_grad_batches * self.trainer.world_size
+
+    def optimizer_step(
+            self,
+            epoch: int,
+            batch_idx: int,
+            optimizer,
+            optimizer_closure=None,
+    ) -> None:
+        super(BaseTrainer, self).optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
+        self.ema.update(self.model)
+
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        checkpoint['ema'] = self.ema.ema
+        checkpoint['updates'] = self.ema.updates
+        checkpoint['state_dict'] = self.ema.ema.state_dict()
+
+    def load_state_dict(self, *args, **kwargs):
+        """
+           模型参数，改在外部加载
+        """
+        pass

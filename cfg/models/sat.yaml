@@ -1,0 +1,5 @@
+encoder_dim: 52
+
+decoder_dim: 512
+
+vocab_size: 2193
