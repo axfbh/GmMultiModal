@@ -1,2 +1,2 @@
 # GmMultiModal
-多模态模型
+多模态框架
