@@ -18,6 +18,7 @@ class BaseTrainer(LightningModule):
     def __init__(self, cfg):
         super(BaseTrainer, self).__init__()
 
+        self.last_opt_step = None
         self.ema = None
 
         self.data = None
@@ -31,6 +32,10 @@ class BaseTrainer(LightningModule):
         self.args = cfg
         self.batch_size = self.args.batch
         self.epochs = self.args.epochs
+
+        self.automatic_optimization = False
+        self.accumulate_grad_batches = max(round(self.args.nbs / self.batch_size), 1)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=False)
 
         self.save_hyperparameters(self.args)
 
@@ -65,9 +70,6 @@ class BaseTrainer(LightningModule):
                               version=version)],
             strategy=smart_distribute(self.args.num_nodes, device, ip_load(), "8888", "0"),
             max_epochs=self.args.epochs,
-            accumulate_grad_batches=max(round(self.args.nbs / self.batch_size), 1),
-            gradient_clip_val=10,
-            gradient_clip_algorithm="norm",
             num_sanity_val_steps=0,
             log_every_n_steps=1,
             callbacks=[progress_bar_callback, checkpoint_callback]
@@ -86,28 +88,29 @@ class BaseTrainer(LightningModule):
         accumulate = max(round(self.args.nbs / self.batch_size), 1)
         weight_decay = self.args.weight_decay * self.batch_size * accumulate / self.args.nbs
 
-        optimizer1 = smart_optimizer(self.encoder,
-                                     self.args.optimizer,
-                                     self.args.lr0,
-                                     self.args.momentum,
-                                     weight_decay)
-        optimizer2 = smart_optimizer(self.decoder,
-                                     self.args.optimizer,
-                                     self.args.lr0,
-                                     self.args.momentum,
-                                     weight_decay)
+        encoder_optimizer = smart_optimizer(self.model.encoder,
+                                            self.args.optimizer,
+                                            self.args.lr0,
+                                            self.args.momentum,
+                                            weight_decay)
+
+        decoder_optimizer = smart_optimizer(self.model.decoder,
+                                            self.args.optimizer,
+                                            self.args.lr0,
+                                            self.args.momentum,
+                                            weight_decay)
 
         self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
 
-        scheduler1 = torch.optim.lr_scheduler.LambdaLR(optimizer1,
-                                                       last_epoch=self.current_epoch - 1,
-                                                       lr_lambda=self.lr_lambda)
+        encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(encoder_optimizer,
+                                                              last_epoch=self.current_epoch - 1,
+                                                              lr_lambda=self.lr_lambda)
 
-        scheduler2 = torch.optim.lr_scheduler.LambdaLR(optimizer1,
-                                                       last_epoch=self.current_epoch - 1,
-                                                       lr_lambda=self.lr_lambda)
+        decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(decoder_optimizer,
+                                                              last_epoch=self.current_epoch - 1,
+                                                              lr_lambda=self.lr_lambda)
 
-        return [optimizer1, optimizer2], [scheduler1, scheduler2]
+        return [encoder_optimizer, decoder_optimizer], [encoder_scheduler, decoder_scheduler]
 
     def configure_model(self) -> None:
         self.model.device = self.device
@@ -115,6 +118,9 @@ class BaseTrainer(LightningModule):
 
     def on_train_start(self) -> None:
         self.ema = ModelEMA(self.model, updates=self.args.updates)
+
+    def on_train_epoch_start(self) -> None:
+        self.last_opt_step = -1
 
     def on_train_batch_start(self, batch: Any, batch_idx: int):
         epoch = self.current_epoch
@@ -139,8 +145,29 @@ class BaseTrainer(LightningModule):
     def forward(self, batch):
         return self.model(batch)
 
+    def optim_encoder_step(self):
+        optim = self.optimizers()[0]
+        self.scaler.unscale_(optim)
+        torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=10.0)  # clip gradients
+        self.scaler.step(optim)
+        self.scaler.update()
+        optim.zero_grad()
+
+    def optim_decoder_step(self):
+        optim = self.optimizers()[1]
+        self.scaler.unscale_(optim)
+        torch.nn.utils.clip_grad_norm_(self.model.decoder.parameters(), max_norm=10.0)  # clip gradients
+        self.scaler.step(optim)
+        self.scaler.update()
+        optim.zero_grad()
+
     def training_step(self, batch, batch_idx):
+        epoch = self.current_epoch
+        ni = batch_idx + self.batch_size * epoch
+
         loss, loss_dict = self(batch)
+
+        loss = loss * self.trainer.accumulate_grad_batches * self.trainer.world_size
 
         self.log_dict(loss_dict,
                       on_step=True,
@@ -150,17 +177,13 @@ class BaseTrainer(LightningModule):
                       rank_zero_only=True,
                       batch_size=self.batch_size)
 
-        return loss * self.trainer.accumulate_grad_batches * self.trainer.world_size
+        self.manual_backward(self.scaler.scale(loss))
 
-    def optimizer_step(
-            self,
-            epoch: int,
-            batch_idx: int,
-            optimizer,
-            optimizer_closure=None,
-    ) -> None:
-        super(BaseTrainer, self).optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
-        self.ema.update(self.model)
+        if ni - self.last_opt_step >= self.trainer.accumulate_grad_batches:
+            self.optim_encoder_step()
+            self.optim_decoder_step()
+            if self.ema:
+                self.ema.update(self.model)
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         checkpoint['ema'] = self.ema.ema

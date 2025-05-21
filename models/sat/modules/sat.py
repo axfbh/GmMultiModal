@@ -99,7 +99,7 @@ class Sat(nn.Module):
             targets = targets[sort_ind, 1:]
             loss = self.criterion(scores, targets)
             top5 = accuracy(scores, targets, 5)
-            return loss, {'ce_loss': loss, 'Top-5 Accuracy': top5}
+            return loss, {'ce_loss': loss.item(), 'Top-5 Accuracy': top5}
 
         return scores
 

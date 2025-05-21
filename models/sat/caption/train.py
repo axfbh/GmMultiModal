@@ -20,10 +20,10 @@ class CaptionTrainer(BaseTrainer):
         return build_flickr8k_dataset(img_path, ann_path)
 
     def setup(self, stage: str) -> None:
-        self.train_dataset = self.build_dataset(self.train_set['image'], self.train_set['ann'], "train")
+        self.train_dataset = self.build_dataset(self.train_set['data_folder'], self.train_set['data_name'], "TRAIN")
 
         if self.val_set is not None:
-            self.val_dataset = self.build_dataset(self.val_set['image'], self.val_set['ann'], "val")
+            self.val_dataset = self.build_dataset(self.val_set['data_folder'], self.val_set['data_name'], "VAL")
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         self.train_loader = build_dataloader(self.train_dataset, self.batch_size,
