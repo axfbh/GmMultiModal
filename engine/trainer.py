@@ -25,6 +25,7 @@ class BaseTrainer(LightningModule):
         self.train_set = None
         self.train_dataset = None
         self.train_loader = None
+        self.val_set = None
 
         self.lr_lambda = None
         self.lightning_trainer = None
@@ -35,7 +36,7 @@ class BaseTrainer(LightningModule):
 
         self.automatic_optimization = False
         self.accumulate_grad_batches = max(round(self.args.nbs / self.batch_size), 1)
-        self.scaler = torch.cuda.amp.GradScaler(enabled=False)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.args.amp)
 
         self.save_hyperparameters(self.args)
 
@@ -145,22 +146,6 @@ class BaseTrainer(LightningModule):
     def forward(self, batch):
         return self.model(batch)
 
-    def optim_encoder_step(self):
-        optim = self.optimizers()[0]
-        self.scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=10.0)  # clip gradients
-        self.scaler.step(optim)
-        self.scaler.update()
-        optim.zero_grad()
-
-    def optim_decoder_step(self):
-        optim = self.optimizers()[1]
-        self.scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(self.model.decoder.parameters(), max_norm=10.0)  # clip gradients
-        self.scaler.step(optim)
-        self.scaler.update()
-        optim.zero_grad()
-
     def training_step(self, batch, batch_idx):
         epoch = self.current_epoch
         ni = batch_idx + self.batch_size * epoch
@@ -184,6 +169,22 @@ class BaseTrainer(LightningModule):
             self.optim_decoder_step()
             if self.ema:
                 self.ema.update(self.model)
+
+    def optim_encoder_step(self):
+        optim = self.optimizers()[0]
+        self.scaler.unscale_(optim)
+        torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=10.0)  # clip gradients
+        self.scaler.step(optim)
+        self.scaler.update()
+        optim.zero_grad()
+
+    def optim_decoder_step(self):
+        optim = self.optimizers()[1]
+        self.scaler.unscale_(optim)
+        torch.nn.utils.clip_grad_norm_(self.model.decoder.parameters(), max_norm=10.0)  # clip gradients
+        self.scaler.step(optim)
+        self.scaler.update()
+        optim.zero_grad()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         checkpoint['ema'] = self.ema.ema
