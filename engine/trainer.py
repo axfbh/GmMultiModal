@@ -173,7 +173,7 @@ class BaseTrainer(LightningModule):
     def optim_encoder_step(self):
         optim = self.optimizers()[0]
         self.scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=10.0)  # clip gradients
+        torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=5.0)  # clip gradients
         self.scaler.step(optim)
         self.scaler.update()
         optim.zero_grad()
