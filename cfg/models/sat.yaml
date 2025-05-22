@@ -3,3 +3,9 @@ encoder_dim: 2048
 decoder_dim: 512
 
 vocab_size: 2190
+
+embed_dim: 512
+
+attention_dim: 512
+
+encoded_image_size: 14

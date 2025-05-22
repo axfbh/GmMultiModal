@@ -26,6 +26,7 @@ class BaseTrainer(LightningModule):
         self.train_dataset = None
         self.train_loader = None
         self.val_set = None
+        self.val_dataset = None
 
         self.lr_lambda = None
         self.lightning_trainer = None
@@ -57,7 +58,7 @@ class BaseTrainer(LightningModule):
 
         checkpoint_callback.FILE_EXTENSION = '.pt'
 
-        progress_bar_callback = LitProgressBar(3)
+        progress_bar_callback = LitProgressBar(10)
 
         csv_logger = CSVLogger(save_dir=f'./{self.args.project}/{self.args.task}', name=self.args.name)
         version = csv_logger._get_next_version()
@@ -176,6 +177,7 @@ class BaseTrainer(LightningModule):
         optim = self.optimizers()[0]
         self.scaler.unscale_(optim)
         torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=5.0)  # clip gradients
+        # Note that configure_gradient_clipping() won’t be called in Manual Optimization. Instead consider using self. clip_gradients() manually like in the example above.
         self.scaler.step(optim)
         self.scaler.update()
         optim.zero_grad()

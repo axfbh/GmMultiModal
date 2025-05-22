@@ -16,6 +16,9 @@ from data.flickr8k_dataset import build_flickr8k_dataset, build_dataloader
 # 因此 DetectionValidator 创建的重复信息会被，后续执行BaseTrainer覆盖，不影响训练时候的参数
 class CaptionTrainer(BaseTrainer):
 
+    def __init__(self, cfg):
+        super().__init__(cfg)
+
     def build_dataset(self, img_path, ann_path, mode="train"):
         return build_flickr8k_dataset(img_path, ann_path)
 
