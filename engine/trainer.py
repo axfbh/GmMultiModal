@@ -108,7 +108,6 @@ class BaseTrainer(LightningModule):
 
     def training_step(self, batch, batch_idx):
         encoder_optimizer, decoder_optimizer = self.optimizers()
-        encoder_scheduler, decoder_scheduler = self.lr_schedulers()
 
         loss, loss_dict = self(batch)
 
@@ -128,8 +127,11 @@ class BaseTrainer(LightningModule):
         self.clip_gradients(decoder_optimizer, 5., "value")
 
         decoder_optimizer.step()
-        decoder_scheduler.step()
         self.ema.update(self.model)
+
+    def on_train_epoch_end(self) -> None:
+        encoder_scheduler, decoder_scheduler = self.lr_schedulers()
+        decoder_scheduler.step()
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         checkpoint['ema'] = self.ema.ema

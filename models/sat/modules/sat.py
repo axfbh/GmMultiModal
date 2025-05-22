@@ -239,7 +239,7 @@ class Sat(nn.Module):
             scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data.to(self.device)
             targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data.to(self.device)
             loss = self.loss(scores, targets)
-            loss += 1 * ((1. - alphas.sum(dim=1)) ** 2).mean()
+            loss += 1. * ((1. - alphas.sum(dim=1)) ** 2).mean()
             top5 = accuracy(scores, targets, 5)
             return loss, {'ce_loss': loss.item(), 'Top-5 Accuracy': top5}
 

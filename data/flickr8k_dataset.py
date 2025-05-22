@@ -85,7 +85,7 @@ def collate_fn(batch):
 def build_flickr8k_dataset(data_folder, data_name, mode='TRAIN'):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    return CaptionDataset(data_folder, data_name, mode, transforms.Compose([normalize]))
+    return CaptionDataset(data_folder, data_name, mode, transform=transforms.Compose([normalize]))
 
 
 def build_dataloader(dataset,
