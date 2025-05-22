@@ -3,8 +3,8 @@ import h5py
 import json
 import torch
 from torch.utils.data import Dataset
-
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
 PIN_MEMORY = str(os.getenv("PIN_MEMORY", True)).lower() == "true"  # global pin_memory for dataloaders
 
@@ -83,7 +83,9 @@ def collate_fn(batch):
 
 
 def build_flickr8k_dataset(data_folder, data_name, mode='TRAIN'):
-    return CaptionDataset(data_folder, data_name, mode)
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+    return CaptionDataset(data_folder, data_name, mode, normalize)
 
 
 def build_dataloader(dataset,

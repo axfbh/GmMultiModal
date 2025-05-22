@@ -8,10 +8,6 @@ from engine.trainer import BaseTrainer
 
 from data.flickr8k_dataset import build_flickr8k_dataset, build_dataloader
 
-
-# from models.yolo.detect.val import DetectionValidator
-
-
 # 先执行 BaseTrainer，从 BaseTrainer super 跳到执行 DetectionValidator
 # 因此 DetectionValidator 创建的重复信息会被，后续执行BaseTrainer覆盖，不影响训练时候的参数
 class CaptionTrainer(BaseTrainer):

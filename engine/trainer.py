@@ -37,7 +37,6 @@ class BaseTrainer(LightningModule):
 
         self.automatic_optimization = False
         self.accumulate_grad_batches = max(round(self.args.nbs / self.batch_size), 1)
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.args.amp)
 
         self.save_hyperparameters(self.args)
 
@@ -89,30 +88,39 @@ class BaseTrainer(LightningModule):
         return self.data['train'], self.data.get('val')
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        accumulate = max(round(self.args.nbs / self.batch_size), 1)
-        weight_decay = self.args.weight_decay * self.batch_size * accumulate / self.args.nbs
+        # accumulate = max(round(self.args.nbs / self.batch_size), 1)
+        # weight_decay = self.args.weight_decay * self.batch_size * accumulate / self.args.nbs
+        # encoder_optimizer = smart_optimizer(self.model.encoder,
+        #                                     self.args.optimizer,
+        #                                     self.args.lr0,
+        #                                     self.args.momentum,
+        #                                     weight_decay)
 
-        encoder_optimizer = smart_optimizer(self.model.encoder,
-                                            self.args.optimizer,
-                                            self.args.lr0,
-                                            self.args.momentum,
-                                            weight_decay)
+        # decoder_optimizer = smart_optimizer(self.model.decoder,
+        #                                     self.args.optimizer,
+        #                                     self.args.lr0,
+        #                                     self.args.momentum,
+        #                                     weight_decay)
 
-        decoder_optimizer = smart_optimizer(self.model.decoder,
-                                            self.args.optimizer,
-                                            self.args.lr0,
-                                            self.args.momentum,
-                                            weight_decay)
+        # self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
 
-        self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
+        decoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
+                                             lr=4e-4)
+        encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, self.model.encoder.parameters()),
+                                             lr=1e-4)
 
-        encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(encoder_optimizer,
-                                                              last_epoch=self.current_epoch - 1,
-                                                              lr_lambda=self.lr_lambda)
+        # self.lr_lambda = lambda x: x * 0.8
 
-        decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(decoder_optimizer,
-                                                              last_epoch=self.current_epoch - 1,
-                                                              lr_lambda=self.lr_lambda)
+        # encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(encoder_optimizer,
+        #                                                       last_epoch=self.current_epoch - 1,
+        #                                                       lr_lambda=self.lr_lambda)
+        #
+        # decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(decoder_optimizer,
+        #                                                       last_epoch=self.current_epoch - 1,
+        #                                                       lr_lambda=self.lr_lambda)
+
+        encoder_scheduler = torch.optim.lr_scheduler.StepLR(encoder_optimizer, step_size=8, gamma=0.8)
+        decoder_scheduler = torch.optim.lr_scheduler.StepLR(decoder_optimizer, step_size=8, gamma=0.8)
 
         return [encoder_optimizer, decoder_optimizer], [encoder_scheduler, decoder_scheduler]
 
@@ -123,39 +131,16 @@ class BaseTrainer(LightningModule):
     def on_train_start(self) -> None:
         self.ema = ModelEMA(self.model, updates=self.args.updates)
 
-    def on_train_epoch_start(self) -> None:
-        self.last_opt_step = -1
-
-    def on_train_batch_start(self, batch: Any, batch_idx: int):
-        epoch = self.current_epoch
-        ni = batch_idx + self.batch_size * epoch
-        nw = max(round(self.batch_size * self.args.warmup_epochs), 100)
-
-        if ni <= nw:
-            ratio = ni / nw
-            interpolated_accumulate = 1 + (self.args.nbs / self.batch_size - 1) * ratio
-            self.trainer.accumulate_grad_batches = max(1, round(interpolated_accumulate))
-            for optim in self.optimizers():
-                for j, param_group in enumerate(optim.param_groups):
-                    # 学习率线性插值
-                    lr_start = self.args.warmup_bias_lr if j == 0 else 0.0
-                    lr_end = param_group["initial_lr"] * self.lr_lambda(epoch)
-                    param_group["lr"] = lr_start + (lr_end - lr_start) * ratio
-
-                    if "momentum" in param_group:
-                        param_group["momentum"] = self.args.warmup_momentum + (
-                                self.args.momentum - self.args.warmup_momentum) * ratio
-
     def forward(self, batch):
         return self.model(batch)
 
     def training_step(self, batch, batch_idx):
-        epoch = self.current_epoch
-        ni = batch_idx + self.batch_size * epoch
+        encoder_optimizer, decoder_optimizer = self.optimizers()
+        encoder_scheduler, decoder_scheduler = self.lr_schedulers()
 
         loss, loss_dict = self(batch)
 
-        loss = loss * self.trainer.accumulate_grad_batches * self.trainer.world_size
+        # loss = loss * self.accumulate_grad_batches * self.trainer.world_size
 
         self.log_dict(loss_dict,
                       on_step=True,
@@ -165,30 +150,14 @@ class BaseTrainer(LightningModule):
                       rank_zero_only=True,
                       batch_size=self.batch_size)
 
-        self.manual_backward(self.scaler.scale(loss))
+        decoder_optimizer.zero_grad()
+        self.manual_backward(loss)
 
-        if ni - self.last_opt_step >= self.trainer.accumulate_grad_batches:
-            # self.optim_encoder_step()
-            self.optim_decoder_step()
-            if self.ema:
-                self.ema.update(self.model)
+        self.clip_gradients(decoder_optimizer, 5., "value")
 
-    def optim_encoder_step(self):
-        optim = self.optimizers()[0]
-        self.scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(self.model.encoder.parameters(), max_norm=5.0)  # clip gradients
-        # Note that configure_gradient_clipping() won’t be called in Manual Optimization. Instead consider using self. clip_gradients() manually like in the example above.
-        self.scaler.step(optim)
-        self.scaler.update()
-        optim.zero_grad()
-
-    def optim_decoder_step(self):
-        optim = self.optimizers()[1]
-        self.scaler.unscale_(optim)
-        torch.nn.utils.clip_grad_norm_(self.model.decoder.parameters(), max_norm=5.0)  # clip gradients
-        self.scaler.step(optim)
-        self.scaler.update()
-        optim.zero_grad()
+        decoder_optimizer.step()
+        decoder_scheduler.step()
+        self.ema.update(self.model)
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         checkpoint['ema'] = self.ema.ema
