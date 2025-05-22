@@ -23,6 +23,27 @@ def accuracy(scores, targets, k):
     return correct_total.item() * (100.0 / batch_size)
 
 
+class Encoder(nn.Module):
+    def __init__(self, encoded_image_size):
+        super(Encoder, self).__init__()
+
+        self.backbone = Backbone(name='resnet101',
+                                 layers_to_train=[],
+                                 return_interm_layers={'layer4': "0"},
+                                 pretrained=True,
+                                 norm_layer=FrozenBatchNorm2d)
+
+        self.adaptive_pool = nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size))
+
+    def forward(self, x):
+        x = self.backbone(x)['0']
+
+        encoder_out = self.adaptive_pool(x)
+        encoder_out = encoder_out.permute(0, 2, 3, 1)
+
+        return encoder_out
+
+
 class Attention(nn.Module):
     """
     Attention Network.
@@ -197,11 +218,7 @@ class Sat(nn.Module):
         vocab_size = cfg['vocab_size']
         encoded_image_size = cfg['encoded_image_size']
 
-        self.encoder = Backbone(name='resnet101',
-                                layers_to_train=[],
-                                return_interm_layers={'layer4': "0"},
-                                pretrained=True,
-                                norm_layer=FrozenBatchNorm2d)
+        self.encoder = Encoder(encoded_image_size=encoded_image_size)
 
         self.decoder = DecoderWithAttention(attention_dim=attention_dim,
                                             embed_dim=embed_dim,
@@ -209,20 +226,16 @@ class Sat(nn.Module):
                                             encoder_dim=encoder_dim,
                                             vocab_size=vocab_size)
 
-        self.adaptive_pool = nn.AdaptiveAvgPool2d((encoded_image_size, encoded_image_size))
-
     def forward(self, batch):
         x = batch[0]
         caps = batch[1]
         cap_lens = batch[2]
 
-        encoder_out = self.encoder(x)['0']
-        encoder_out = self.adaptive_pool(encoder_out)
-        encoder_out = encoder_out.permute(0, 2, 3, 1)
+        encoder_out = self.encoder(x)
         scores, caps_sorted, decode_lengths, alphas, sort_ind = self.decoder(encoder_out, caps, cap_lens)
 
         if self.training:
-            targets = caps_sorted[sort_ind, 1:]
+            targets = caps_sorted[:, 1:]
             scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data.to(self.device)
             targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data.to(self.device)
             loss = self.loss(scores, targets)

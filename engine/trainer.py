@@ -41,9 +41,6 @@ class BaseTrainer(LightningModule):
         self.save_hyperparameters(self.args)
 
     def _setup_trainer(self):
-        self.model.train()
-        self.model.requires_grad_(True)
-
         device = select_device(self.args.device, self.batch_size)
 
         accelerator = self.args.device if self.args.device in ["cpu", "tpu", "ipu", "hpu", "mps"] else 'gpu'
@@ -57,7 +54,7 @@ class BaseTrainer(LightningModule):
 
         checkpoint_callback.FILE_EXTENSION = '.pt'
 
-        progress_bar_callback = LitProgressBar(10)
+        progress_bar_callback = LitProgressBar(100)
 
         csv_logger = CSVLogger(save_dir=f'./{self.args.project}/{self.args.task}', name=self.args.name)
         version = csv_logger._get_next_version()
@@ -88,36 +85,11 @@ class BaseTrainer(LightningModule):
         return self.data['train'], self.data.get('val')
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        # accumulate = max(round(self.args.nbs / self.batch_size), 1)
-        # weight_decay = self.args.weight_decay * self.batch_size * accumulate / self.args.nbs
-        # encoder_optimizer = smart_optimizer(self.model.encoder,
-        #                                     self.args.optimizer,
-        #                                     self.args.lr0,
-        #                                     self.args.momentum,
-        #                                     weight_decay)
-
-        # decoder_optimizer = smart_optimizer(self.model.decoder,
-        #                                     self.args.optimizer,
-        #                                     self.args.lr0,
-        #                                     self.args.momentum,
-        #                                     weight_decay)
-
-        # self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
+        encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
+                                             lr=1e-4)
 
         decoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
                                              lr=4e-4)
-        encoder_optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, self.model.encoder.parameters()),
-                                             lr=1e-4)
-
-        # self.lr_lambda = lambda x: x * 0.8
-
-        # encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(encoder_optimizer,
-        #                                                       last_epoch=self.current_epoch - 1,
-        #                                                       lr_lambda=self.lr_lambda)
-        #
-        # decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(decoder_optimizer,
-        #                                                       last_epoch=self.current_epoch - 1,
-        #                                                       lr_lambda=self.lr_lambda)
 
         encoder_scheduler = torch.optim.lr_scheduler.StepLR(encoder_optimizer, step_size=8, gamma=0.8)
         decoder_scheduler = torch.optim.lr_scheduler.StepLR(decoder_optimizer, step_size=8, gamma=0.8)
