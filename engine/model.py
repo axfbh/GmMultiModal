@@ -51,6 +51,7 @@ class Model:
         args.update({'data': data, 'num_nodes': num_nodes})
 
         trainer = self._smart_load("trainer")(args)
+        self.model.train()
         trainer.add_module('model', self.model)
         trainer.fit()
 
@@ -60,6 +61,7 @@ class Model:
         args.update({'data': data})
 
         validator = self._smart_load("validator")(args)
+        self.model.eval()
         validator.add_module('model', self.model)
         validator.validate()
 
