@@ -14,6 +14,11 @@ LOGGER = logging.getLogger('yolo')  # define globally (used in train.py, val.py,
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
 
 
+def is_frozen(model):
+    """检查整个模型是否所有参数均被冻结（requires_grad=False）"""
+    return all(not param.requires_grad for param in model.parameters())
+
+
 def smart_optimizer(model, name: str = "Adam", lr=0.001, momentum=0.9, decay=1e-5):
     g = [], [], []  # optimizer parameter groups
     bn = tuple(v for k, v in nn.__dict__.items() if "Norm" in k)  # normalization layers, i.e. BatchNorm2d()
@@ -29,21 +34,16 @@ def smart_optimizer(model, name: str = "Adam", lr=0.001, momentum=0.9, decay=1e-
                 g[0].append(param)
 
     if name in {"Adam", "Adamax", "AdamW", "NAdam", "RAdam"}:
-        # optimizer = getattr(torch.optim, name, torch.optim.Adam)(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
-        optimizer = getattr(torch.optim, name, torch.optim.Adam)(g[0], lr=lr, weight_decay=decay)
+        optimizer = getattr(torch.optim, name, torch.optim.Adam)(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
     elif name == "RMSProp":
-        # optimizer = torch.optim.RMSprop(g[2], lr=lr, momentum=momentum)
-        optimizer = torch.optim.RMSprop(g[0], lr=lr, weight_decay=decay)
+        optimizer = torch.optim.RMSprop(g[2], lr=lr, momentum=momentum)
     elif name == "SGD":
-        # optimizer = torch.optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
-        optimizer = torch.optim.SGD(g[0], lr=lr, weight_decay=decay)
+        optimizer = torch.optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
     else:
         raise NotImplementedError(f"Optimizer {name} not implemented.")
 
-    if len(g[2]) > 0:
-        optimizer.add_param_group({"params": g[2], "momentum": momentum, "nesterov": True})  # add g0 with weight_decay
-    if len(g[1]) > 0:
-        optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
+    optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g0 with weight_decay
+    optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
 
     # rank_zero_info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
     #                f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias')

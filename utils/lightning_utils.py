@@ -183,4 +183,3 @@ class LitProgressBar(ProgressBar):
         pl_module.log('fitness', fitness)
 
         print_coco_report(results)
-
