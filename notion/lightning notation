@@ -18,6 +18,9 @@ global_step :  optimizer step times
 
 
 # lightning 的 loss / accumulate ，影响收敛，因此需要下述代码乘回去
+# 原因如下，正常情况，应该是平均后立刻 loss.backward()，累计梯度，但不 step
+# 但是 lightning 无法 立刻 loss.backward(),只能等到 accumulate 才能
+# 所以，需要将 loss 放大，当 step 等价于 accumulate 的 loss ，然后loss.backward()
 return loss * self.trainer.accumulate_grad_batches
 
 

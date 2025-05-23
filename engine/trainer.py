@@ -200,8 +200,8 @@ class BaseTrainer(LightningModule):
                       rank_zero_only=True,
                       batch_size=self.batch_size)
 
-        # lightning 的 loss / accumulate ，影响收敛
-        loss = loss * self.trainer.accumulate_grad_batches * self.trainer.world_size
+        loss = loss / self.trainer.accumulate_grad_batches * self.trainer.world_size
+        self.manual_backward(loss)
 
         if not self.trainer.fit_loop._should_accumulate():
             self.step(loss)
@@ -211,19 +211,14 @@ class BaseTrainer(LightningModule):
         self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.increment_ready()
 
         if self.is_decoder:
-            self.decoder_optimizer.zero_grad()
-        if self.is_encoder:
-            self.encoder_optimizer.zero_grad()
-
-        self.manual_backward(loss)
-
-        if self.is_decoder:
             self.clip_gradients(self.decoder_optimizer, 5., "value")
             self.decoder_optimizer.step()
+            self.decoder_optimizer.zero_grad()
 
         if self.is_encoder:
             self.clip_gradients(self.encoder_optimizer, 5., "value")
             self.encoder_optimizer.step()
+            self.encoder_optimizer.zero_grad()
 
         self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.increment_completed()
 
