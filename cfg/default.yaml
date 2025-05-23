@@ -17,11 +17,11 @@ amp: False
 # Hyperparameters ------------------------------------------------------------------------------------------------------
 lre0: 0.0001 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
 lrd0: 0.0004 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
-lrf: 0.001 # (float) final learning rate (lr0 * lrf)
+lrf: 0.01 # (float) final learning rate (lr0 * lrf)
 momentum: 0.937 # (float) SGD momentum/Adam beta1
 weight_decay: 0.0005 # (float) optimizer weight decay 5e-4
 warmup_epochs: 3.0 # (float) warmup epochs (fractions ok)
 warmup_momentum: 0.8 # (float) warmup initial momentum
-warmup_bias_lr: 0.1 # (float) warmup initial bias lr
+warmup_bias_lr: 0.004 # (float) warmup initial bias lr
 label_smoothing: 0.0 # (float) label smoothing (fraction)
 nbs: 64 # (int) nominal batch size

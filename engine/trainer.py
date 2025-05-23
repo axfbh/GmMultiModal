@@ -123,18 +123,22 @@ class BaseTrainer(LightningModule):
         self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
 
         if self.is_encoder:
-            self.encoder_optimizer = smart_optimizer(self.model.encoder,
-                                                     self.args.optimizer,
-                                                     self.args.lre0,
-                                                     self.args.momentum,
-                                                     weight_decay)
-            self.encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(self.encoder_optimizer,
-                                                                       last_epoch=self.current_epoch - 1,
-                                                                       lr_lambda=self.lr_lambda)
+            # self.encoder_optimizer = smart_optimizer(self.model.encoder,
+            #                                          self.args.optimizer,
+            #                                          self.args.lre0,
+            #                                          self.args.momentum,
+            #                                          weight_decay)
+            # self.encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(self.encoder_optimizer,
+            #                                                            last_epoch=self.current_epoch - 1,
+            #                                                            lr_lambda=self.lr_lambda)
             optim.append(self.encoder_optimizer)
             sche.append(self.encoder_scheduler)
 
         if self.is_decoder:
+            # self.decoder_optimizer = torch.optim.Adam(
+            #     params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
+            #     lr=4e-4)
+            # self.decoder_scheduler = torch.optim.lr_scheduler.StepLR(self.decoder_optimizer, step_size=8, gamma=0.8)
             self.decoder_optimizer = smart_optimizer(self.model.decoder,
                                                      self.args.optimizer,
                                                      self.args.lrd0,
@@ -200,11 +204,11 @@ class BaseTrainer(LightningModule):
                       rank_zero_only=True,
                       batch_size=self.batch_size)
 
-        loss = loss / self.trainer.accumulate_grad_batches * self.trainer.world_size
+        # loss = loss / self.trainer.accumulate_grad_batches * self.trainer.world_size
         self.manual_backward(loss)
 
-        if not self.trainer.fit_loop._should_accumulate():
-            self._optimizer_step()
+        # if not self.trainer.fit_loop._should_accumulate():
+        self._optimizer_step()
 
     def _optimizer_step(self) -> None:
         # 统计 optim step 执行次数，即 global_step
