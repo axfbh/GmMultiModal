@@ -204,9 +204,9 @@ class BaseTrainer(LightningModule):
         self.manual_backward(loss)
 
         if not self.trainer.fit_loop._should_accumulate():
-            self.step(loss)
+            self._optimizer_step()
 
-    def step(self, loss) -> None:
+    def _optimizer_step(self) -> None:
         # 统计 optim step 执行次数，即 global_step
         self.trainer.fit_loop.epoch_loop.manual_optimization.optim_step_progress.increment_ready()
 
