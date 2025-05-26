@@ -24,13 +24,6 @@ class BaseTrainer(LightningModule):
 
         self.ema = None
 
-        self.data = None
-        self.train_set = None
-        self.train_dataset = None
-        self.train_loader = None
-        self.val_set = None
-        self.val_dataset = None
-
         self.is_decoder = True
         self.is_encoder = True
         self.encoder_optimizer = None
@@ -44,6 +37,12 @@ class BaseTrainer(LightningModule):
         self.args = cfg
         self.batch_size = self.args.batch
         self.epochs = self.args.epochs
+
+        self.data = None
+        self.train_set, self.val_set = self.get_dataset()
+        self.train_dataset = None
+        self.train_loader = None
+        self.val_dataset = None
 
         self.automatic_optimization = False
 
@@ -85,7 +84,7 @@ class BaseTrainer(LightningModule):
 
         checkpoint_callback.FILE_EXTENSION = '.pt'
 
-        progress_bar_callback = LitProgressBar(100)
+        progress_bar_callback = LitProgressBar(20)
 
         csv_logger = CSVLogger(save_dir=f'./{self.args.project}/{self.args.task}', name=self.args.name)
         version = csv_logger._get_next_version()
@@ -108,7 +107,6 @@ class BaseTrainer(LightningModule):
 
     def fit(self):
         self._setup_trainer()
-        self.train_set, self.val_set = self.get_dataset()
         self.lightning_trainer.fit(self, ckpt_path=self.args.model if self.args.resume else None)
 
     def get_dataset(self):
@@ -135,19 +133,19 @@ class BaseTrainer(LightningModule):
             sche.append(self.encoder_scheduler)
 
         if self.is_decoder:
-            self.decoder_optimizer = torch.optim.Adam(
-                params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
-                lr=4e-4)
-            self.decoder_scheduler = torch.optim.lr_scheduler.StepLR(self.decoder_optimizer, step_size=8, gamma=0.8)
-            # self.decoder_optimizer = smart_optimizer(self.model.decoder,
-            #                                          self.args.optimizer,
-            #                                          self.args.lrd0,
-            #                                          self.args.momentum,
-            #                                          weight_decay)
-            #
-            # self.decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(self.decoder_optimizer,
-            #                                                            last_epoch=self.current_epoch - 1,
-            #                                                            lr_lambda=self.lr_lambda)
+            # self.decoder_optimizer = torch.optim.Adam(
+            #     params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
+            #     lr=4e-4)
+            # self.decoder_scheduler = torch.optim.lr_scheduler.StepLR(self.decoder_optimizer, step_size=8, gamma=0.8)
+            self.decoder_optimizer = smart_optimizer(self.model.decoder,
+                                                     self.args.optimizer,
+                                                     self.args.lrd0,
+                                                     self.args.momentum,
+                                                     weight_decay)
+
+            self.decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(self.decoder_optimizer,
+                                                                       last_epoch=self.current_epoch - 1,
+                                                                       lr_lambda=self.lr_lambda)
             optim.append(self.decoder_optimizer)
             sche.append(self.decoder_scheduler)
 
