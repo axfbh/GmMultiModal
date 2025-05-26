@@ -6,7 +6,6 @@ from lightning.pytorch.callbacks.progress.tqdm_progress import Tqdm
 
 import torch
 from tqdm import tqdm
-from torch import Tensor
 
 
 class LitTqdm(Tqdm):
