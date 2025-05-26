@@ -6,11 +6,13 @@ from typing import List
 import torch
 from torch import nn
 import platform
-import logging
 
 from lightning.pytorch.strategies import DDPStrategy
 
-LOGGER = logging.getLogger('yolo')  # define globally (used in train.py, val.py, detect.py, etc.)
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+
+from utils import colorstr, LOGGER
+
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
 
 
@@ -45,8 +47,8 @@ def smart_optimizer(model, name: str = "Adam", lr=0.001, momentum=0.9, decay=1e-
     optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g0 with weight_decay
     optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
 
-    # rank_zero_info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
-    #                f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias')
+    rank_zero_info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
+                   f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias')
     return optimizer
 
 

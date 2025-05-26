@@ -9,19 +9,19 @@ device: 0 # (int | str | list, optional) device to run on, i.e. cuda device=0 or
 workers: 3 # (int) number of worker threads for data loading (per RANK if DDP)
 project: runs # (str, optional) project name
 name: train
-optimizer: Adam # (str) optimizer to use, choices=[SGD, Adam, Adamax, AdamW, NAdam, RAdam, RMSProp, auto]
+optimizer: Adam # (str) optimizer to use, choices=[SGD, Adam, Adamax, AdamW, NAdam, RAdam, RMSProp, auto]e
 resume: False # (bool) resume training from last checkpoint
 amp: False
 
 
 # Hyperparameters ------------------------------------------------------------------------------------------------------
-lre0: 0.0001 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
-lrd0: 0.0004 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
-lrf: 0.01 # (float) final learning rate (lr0 * lrf)
+lre0: 0.00001 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
+lrd0: 0.00004 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
+lrf: 0.1 # (float) final learning rate (lr0 * lrf)
 momentum: 0.937 # (float) SGD momentum/Adam beta1
-weight_decay: 0.0005 # (float) optimizer weight decay 5e-4
+weight_decay: 0.0004 # (float) optimizer weight decay 5e-4
 warmup_epochs: 3.0 # (float) warmup epochs (fractions ok)
 warmup_momentum: 0.8 # (float) warmup initial momentum
-warmup_bias_lr: 0.004 # (float) warmup initial bias lr
+warmup_bias_lr: 0.0003 # (float) warmup initial bias lr
 label_smoothing: 0.0 # (float) label smoothing (fraction)
 nbs: 64 # (int) nominal batch size
