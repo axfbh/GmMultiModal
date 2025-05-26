@@ -11,7 +11,7 @@ from lightning.pytorch.strategies import DDPStrategy
 
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 
-from utils import colorstr, LOGGER
+from utils import colorstr
 
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
 
@@ -67,9 +67,9 @@ def smart_resume(ckpt, optimizer, ema=None, weights="yolov5s.pt", epochs=300, re
             f"{weights} training to {epochs} epochs is finished, nothing to resume.\n"
             f"Start a new training without --resume, i.e. 'python train.py --weights {weights}'"
         )
-        LOGGER.info(f"Resuming training from {weights} from epoch {start_epoch} to {epochs} total epochs")
+        rank_zero_info(f"Resuming training from {weights} from epoch {start_epoch} to {epochs} total epochs")
     if epochs < start_epoch:
-        LOGGER.info(f"{weights} has been trained for {ckpt['epoch']} epochs. Fine-tuning for {epochs} more epochs.")
+        rank_zero_info(f"{weights} has been trained for {ckpt['epoch']} epochs. Fine-tuning for {epochs} more epochs.")
         epochs += ckpt["epoch"]  # finetune additional epochs
     return best_fitness, start_epoch, epochs
 
@@ -129,7 +129,7 @@ def select_device(device="", batch=0, newline=False, verbose=True):
     if arg in {"cpu", "mps"}:
         torch.set_num_threads(NUM_THREADS)  # reset OMP_NUM_THREADS for cpu training
     if verbose:
-        LOGGER.info(s if newline else s.rstrip())
+        rank_zero_info(s if newline else s.rstrip())
     return devices
 
 
