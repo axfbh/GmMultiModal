@@ -187,11 +187,11 @@ class BaseTrainer(LightningModule):
                       rank_zero_only=True,
                       batch_size=self.batch_size)
 
-        # loss = loss / self.trainer.accumulate_grad_batches * self.trainer.world_size
+        loss = loss / self.trainer.accumulate_grad_batches * self.trainer.world_size
         self.manual_backward(loss)
 
-        # if not self.trainer.fit_loop._should_accumulate():
-        self._optimizer_step()
+        if not self.trainer.fit_loop._should_accumulate():
+            self._optimizer_step()
 
     def _optimizer_step(self) -> None:
         # 统计 optim step 执行次数，即 global_step
