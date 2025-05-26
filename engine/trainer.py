@@ -6,6 +6,7 @@ import signal
 from omegaconf import OmegaConf
 
 import torch
+from torch import nn
 
 import lightning as L
 from lightning import LightningModule
@@ -119,59 +120,39 @@ class BaseTrainer(LightningModule):
         self.lightning_trainer.fit(self, ckpt_path=self.args.model if self.args.resume else None)
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        optim, sche = [], []
-
-        accumulate = max(round(self.args.nbs / self.batch_size), 1)
-        weight_decay = self.args.weight_decay * self.batch_size * accumulate / self.args.nbs
-        self.lr_lambda = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf
+        optimizers, schedulers = [], []
 
         if self.is_encoder:
-            # self.encoder_optimizer = smart_optimizer(self.model.encoder,
-            #                                          self.args.optimizer,
-            #                                          self.args.lre0,
-            #                                          self.args.momentum,
-            #                                          weight_decay)
-            # self.encoder_scheduler = torch.optim.lr_scheduler.LambdaLR(self.encoder_optimizer,
-            #                                                            last_epoch=self.current_epoch - 1,
-            #                                                            lr_lambda=self.lr_lambda)
-            optim.append(self.encoder_optimizer)
-            sche.append(self.encoder_scheduler)
+            self.encoder_optimizer = torch.optim.Adam(
+                params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
+                betas=(self.args.momentum, 0.999),
+                lr=self.args.lre0)
+
+            self.encoder_scheduler = torch.optim.lr_scheduler.StepLR(self.encoder_optimizer, step_size=8, gamma=0.8)
+
+            optimizers.append(self.encoder_optimizer)
+            schedulers.append(self.encoder_scheduler)
 
         if self.is_decoder:
-            # self.decoder_optimizer = torch.optim.Adam(
-            #     params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
-            #     lr=4e-4)
-            #
-            # self.decoder_scheduler = torch.optim.lr_scheduler.StepLR(self.decoder_optimizer, step_size=8, gamma=0.8)
+            self.decoder_optimizer = torch.optim.Adam(
+                params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
+                betas=(self.args.momentum, 0.999),
+                lr=self.args.lrd0)
 
-            self.decoder_optimizer = smart_optimizer(self.model.decoder,
-                                                     self.args.optimizer,
-                                                     self.args.lrd0,
-                                                     self.args.momentum,
-                                                     weight_decay)
+            self.decoder_scheduler = torch.optim.lr_scheduler.StepLR(self.decoder_optimizer, step_size=8, gamma=0.8)
 
-            self.decoder_scheduler = torch.optim.lr_scheduler.LambdaLR(self.decoder_optimizer,
-                                                                       last_epoch=self.current_epoch - 1,
-                                                                       lr_lambda=self.lr_lambda)
-            optim.append(self.decoder_optimizer)
-            sche.append(self.decoder_scheduler)
+            optimizers.append(self.decoder_optimizer)
+            schedulers.append(self.decoder_scheduler)
 
-        return optim, sche
+        return optimizers, schedulers
 
     def configure_model(self) -> None:
         self.model.device = self.device
         self.model.args = self.args
 
-        freeze_list = (
-            self.args.freeze
-            if isinstance(self.args.freeze, list)
-            else range(self.args.freeze)
-            if isinstance(self.args.freeze, int)
-            else []
-        )
+        freeze_list = self.args.freeze
 
-        always_freeze_names = [".dfl"]  # always freeze these layers
-        freeze_layer_names = [f"model.{x}." for x in freeze_list] + always_freeze_names
+        freeze_layer_names = [f"model.{x}." for x in freeze_list]
         self.freeze_layer_names = freeze_layer_names
         for k, v in self.named_parameters():
             if any(x in k for x in freeze_layer_names):
@@ -191,33 +172,6 @@ class BaseTrainer(LightningModule):
 
     def on_train_epoch_start(self) -> None:
         self._model_train()
-
-    def on_train_batch_start(self, batch: Any, batch_idx: int):
-        epoch = self.current_epoch
-        ni = batch_idx + self.batch_size * epoch
-        # 预热共识，不能超过 100 step
-        nw = max(round(self.batch_size * self.args.warmup_epochs), 100)
-
-        optimizers = []
-        if self.is_decoder:
-            optimizers.append(self.decoder_optimizer)
-        if self.is_encoder:
-            optimizers.append(self.encoder_optimizer)
-
-        if ni <= nw:
-            ratio = ni / nw
-            interpolated_accumulate = 1 + (self.args.nbs / self.batch_size - 1) * ratio
-            self.trainer.accumulate_grad_batches = max(1, round(interpolated_accumulate))
-            for optimizer in optimizers:
-                for j, param_group in enumerate(optimizer.param_groups):
-                    # 学习率线性插值
-                    lr_start = self.args.warmup_bias_lr if j == 0 else 0.0
-                    lr_end = param_group["initial_lr"] * self.lr_lambda(epoch)
-                    param_group["lr"] = lr_start + (lr_end - lr_start) * ratio
-
-                    if "momentum" in param_group:
-                        param_group["momentum"] = self.args.warmup_momentum + (
-                                self.args.momentum - self.args.warmup_momentum) * ratio
 
     def forward(self, batch):
         return self.model(batch)
