@@ -22,6 +22,7 @@ class BaseTrainer(LightningModule):
     def __init__(self, cfg):
         super(BaseTrainer, self).__init__()
 
+        self.freeze_layer_names = None
         self.ema = None
 
         self.is_decoder = True
@@ -47,6 +48,14 @@ class BaseTrainer(LightningModule):
         self.automatic_optimization = False
 
         self.save_hyperparameters(self.args)
+
+    def _model_train(self):
+        """Set model in training mode."""
+        self.model.train()
+        # Freeze BN stat
+        for n, m in self.named_modules():
+            if any(filter(lambda f: f in n, self.freeze_layer_names)) and isinstance(m, nn.BatchNorm2d):
+                m.eval()
 
     def _start_tensorboard(self):
         port = 6006
@@ -84,7 +93,7 @@ class BaseTrainer(LightningModule):
 
         checkpoint_callback.FILE_EXTENSION = '.pt'
 
-        progress_bar_callback = LitProgressBar(20)
+        progress_bar_callback = LitProgressBar(100)
 
         csv_logger = CSVLogger(save_dir=f'./{self.args.project}/{self.args.task}', name=self.args.name)
         version = csv_logger._get_next_version()
@@ -109,10 +118,6 @@ class BaseTrainer(LightningModule):
         self._setup_trainer()
         self.lightning_trainer.fit(self, ckpt_path=self.args.model if self.args.resume else None)
 
-    def get_dataset(self):
-        self.data = OmegaConf.load(self.args.data)
-        return self.data['train'], self.data.get('val')
-
     def configure_optimizers(self) -> OptimizerLRScheduler:
         optim, sche = [], []
 
@@ -136,7 +141,9 @@ class BaseTrainer(LightningModule):
             # self.decoder_optimizer = torch.optim.Adam(
             #     params=filter(lambda p: p.requires_grad, self.model.decoder.parameters()),
             #     lr=4e-4)
+            #
             # self.decoder_scheduler = torch.optim.lr_scheduler.StepLR(self.decoder_optimizer, step_size=8, gamma=0.8)
+
             self.decoder_optimizer = smart_optimizer(self.model.decoder,
                                                      self.args.optimizer,
                                                      self.args.lrd0,
@@ -154,6 +161,26 @@ class BaseTrainer(LightningModule):
     def configure_model(self) -> None:
         self.model.device = self.device
         self.model.args = self.args
+
+        freeze_list = (
+            self.args.freeze
+            if isinstance(self.args.freeze, list)
+            else range(self.args.freeze)
+            if isinstance(self.args.freeze, int)
+            else []
+        )
+
+        always_freeze_names = [".dfl"]  # always freeze these layers
+        freeze_layer_names = [f"model.{x}." for x in freeze_list] + always_freeze_names
+        self.freeze_layer_names = freeze_layer_names
+        for k, v in self.named_parameters():
+            if any(x in k for x in freeze_layer_names):
+                print(f"Freezing layer '{k}'")
+                v.requires_grad = False
+            elif not v.requires_grad and v.dtype.is_floating_point:  # only floating point Tensor can require gradients
+                print(f"setting 'requires_grad=True' for frozen layer '{k}'. ")
+                v.requires_grad = True
+
         self.is_encoder = not is_frozen(self.model.encoder)
         self.is_decoder = not is_frozen(self.model.decoder)
         self.trainer.accumulate_grad_batches = max(round(self.args.nbs / self.batch_size), 1)
@@ -162,9 +189,13 @@ class BaseTrainer(LightningModule):
         self._start_tensorboard()
         self.ema = ModelEMA(self.model, updates=self.args.updates)
 
+    def on_train_epoch_start(self) -> None:
+        self._model_train()
+
     def on_train_batch_start(self, batch: Any, batch_idx: int):
         epoch = self.current_epoch
         ni = batch_idx + self.batch_size * epoch
+        # 预热共识，不能超过 100 step
         nw = max(round(self.batch_size * self.args.warmup_epochs), 100)
 
         optimizers = []
@@ -246,3 +277,7 @@ class BaseTrainer(LightningModule):
            模型参数，改在外部加载
         """
         pass
+
+    def get_dataset(self):
+        self.data = OmegaConf.load(self.args.data)
+        return self.data['train'], self.data.get('val')

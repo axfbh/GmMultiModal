@@ -12,16 +12,17 @@ name: train
 optimizer: Adam # (str) optimizer to use, choices=[SGD, Adam, Adamax, AdamW, NAdam, RAdam, RMSProp, auto]e
 resume: False # (bool) resume training from last checkpoint
 amp: False
+freeze: None # (int | list, optional) freeze first n layers, or freeze list of layer indices during training
 
 
 # Hyperparameters ------------------------------------------------------------------------------------------------------
 lre0: 0.0001 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
 lrd0: 0.0004 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
 lrf: 0.1 # (float) final learning rate (lr0 * lrf)
-momentum: 0.937 # (float) SGD momentum/Adam beta1
+momentum: 0.9 # (float) SGD momentum/Adam beta1 (i.e. SGD=0.937, Adam=0.9)
 weight_decay: 0.0005 # (float) optimizer weight decay 5e-4
 warmup_epochs: 3.0 # (float) warmup epochs (fractions ok)
-warmup_momentum: 0.8 # (float) warmup initial momentum
-warmup_bias_lr: 0.1 # (float) warmup initial bias lr
+warmup_momentum: 0.88 # (float) warmup initial momentum (i.e. SGD=0.8, Adam=0.88)
+warmup_bias_lr: 0.0001 # (float) warmup initial bias lr
 label_smoothing: 0.0 # (float) label smoothing (fraction)
 nbs: 64 # (int) nominal batch size

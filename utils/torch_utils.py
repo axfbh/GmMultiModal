@@ -44,7 +44,7 @@ def smart_optimizer(model, name: str = "Adam", lr=0.001, momentum=0.9, decay=1e-
     else:
         raise NotImplementedError(f"Optimizer {name} not implemented.")
 
-    optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g0 with weight_decay
+    optimizer.add_param_group({"params": g[0],  "weight_decay": decay})  # add g0 with weight_decay
     optimizer.add_param_group({"params": g[1], "weight_decay": 0.0})  # add g1 (BatchNorm2d weights)
 
     rank_zero_info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
