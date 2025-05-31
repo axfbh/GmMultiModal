@@ -4,5 +4,6 @@ from .ops import Backbone
 
 __all__ = [
     "resnet50",
+    "resnet101",
     "Backbone",
 ]
