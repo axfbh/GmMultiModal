@@ -1,4 +1,4 @@
-from .sat import Sat
+from .sat_t import Sat
 
 
 __all__ = [

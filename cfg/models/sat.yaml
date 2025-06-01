@@ -1,4 +1,4 @@
-encoder_dim: 2048
+encoder_dim: 1000
 
 decoder_dim: 512
 

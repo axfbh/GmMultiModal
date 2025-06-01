@@ -4,6 +4,7 @@ from torchvision.ops.misc import FrozenBatchNorm2d
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from nn.backbone import Backbone
+from torchvision.models.resnet import resnet101
 
 
 def accuracy(scores, targets, k):
@@ -24,11 +25,12 @@ def accuracy(scores, targets, k):
 
 
 class LSTMOtm(nn.Module):
-    def __init__(self, encoder_dim, decoder_dim, vocab_size, dropout=0.5):
+    def __init__(self, encoder_dim, embed_dim, decoder_dim, vocab_size, dropout=0.5):
         super(LSTMOtm, self).__init__()
         self.vocab_size = vocab_size
         self.encoder_dim = encoder_dim
         self.decoder_dim = decoder_dim
+        self.embedding = nn.Embedding(vocab_size, embed_dim)  # embedding layer
         self.hidden_state = nn.LSTMCell(encoder_dim, decoder_dim, bias=True)  # decoding LSTMCell
         self.fc = nn.Linear(decoder_dim, vocab_size)
         self.dropout = nn.Dropout(p=dropout)
@@ -43,33 +45,36 @@ class LSTMOtm(nn.Module):
 
     def init_hidden_state(self, encoder_out):
         bs = encoder_out.size(0)
-        zeros = torch.zeros(bs, self.decoder_dim,
-                            dtype=encoder_out.dtype,
-                            device=encoder_out.device)
-        h = zeros  # (batch_size, decoder_dim)
-        c = zeros
+        h = torch.zeros(bs, self.decoder_dim,
+                        dtype=encoder_out.dtype,
+                        device=encoder_out.device)
+        c = torch.zeros(bs, self.decoder_dim,
+                        dtype=encoder_out.dtype,
+                        device=encoder_out.device)
         return h, c
 
-    def forward(self, encoder_out, caption_lengths):
+    def forward(self, encoder_out, encoded_captions, caption_lengths):
         batch_size = encoder_out.size(0)
-        encoder_dim = encoder_out.size(-1)
-
-        encoder_out = encoder_out.view(batch_size, -1, encoder_dim)
 
         # 根据解析排序，长->短
         caption_lengths, sort_ind = caption_lengths.squeeze(1).sort(dim=0, descending=True)
         encoder_out = encoder_out[sort_ind]
+        encoded_captions = encoded_captions[sort_ind]
 
+        embeddings = self.embedding(encoded_captions)  # (batch_size, max_caption_length, embed_dim)
+        # N-1
         decode_lengths = (caption_lengths - 1).tolist()
 
         # Initialize LSTM state
         h, c = self.init_hidden_state(encoder_out)  # (batch_size, decoder_dim)
 
+        h, c = self.hidden_state(encoder_out, (h, c))
+
         predictions = torch.zeros(batch_size, max(decode_lengths), self.vocab_size).to(encoder_out.device)
         for t in range(max(decode_lengths)):
             # 由于排序后，长的在前短的在后，由于batch输入需要padding，找出截止到目前没padding的batch
             batch_size_t = sum([l > t for l in decode_lengths])
-            h, c = self.hidden_state(encoder_out[:batch_size_t, t], (h[:batch_size_t], c[:batch_size_t]))
+            h, c = self.hidden_state(embeddings[:batch_size_t, t], (h[:batch_size_t], c[:batch_size_t]))
 
             preds = self.fc(self.dropout(h))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
@@ -82,27 +87,23 @@ class Sat(nn.Module):
 
         encoder_dim = cfg['encoder_dim']
         decoder_dim = cfg['decoder_dim']
+        embed_dim = cfg['embed_dim']
         vocab_size = cfg['vocab_size']
 
-        self.encoder = Backbone(name='resnet101',
-                                layers_to_train=[],
-                                return_interm_layers={'layer4': "0"},
-                                pretrained=True,
-                                norm_layer=FrozenBatchNorm2d)
+        self.encoder = resnet101(pretrained=True)
 
-        self.decoder = LSTMOtm(encoder_dim, decoder_dim, vocab_size)
+        self.decoder = LSTMOtm(encoder_dim, embed_dim, decoder_dim, vocab_size)
 
     def forward(self, batch):
         x = batch[0]
+        caps = batch[1]
         cap_lens = batch[2]
 
-        encoder_out = self.encoder(x)['0']
-        encoder_out = encoder_out.permute(0, 2, 3, 1)
-        scores, decode_lengths, sort_ind = self.decoder(encoder_out, cap_lens)
+        encoder_out = self.encoder(x)
+        scores, decode_lengths, sort_ind = self.decoder(encoder_out, caps, cap_lens)
 
         if self.training:
-            targets = batch[1]
-            targets = targets[sort_ind, 1:]
+            targets = caps[sort_ind, 1:]
             scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data.to(self.device)
             targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data.to(self.device)
             loss = self.loss(scores, targets)
