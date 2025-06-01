@@ -1,5 +1,5 @@
-from .sat import SAT
+from .nic import NIC
 
 __all__ = [
-    "SAT",
+    "NIC",
 ]

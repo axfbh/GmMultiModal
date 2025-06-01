@@ -119,6 +119,26 @@ class BaseTrainer(LightningModule):
         self._setup_trainer()
         self.lightning_trainer.fit(self, ckpt_path=self.args.model if self.args.resume else None)
 
+    def configure_model(self) -> None:
+        self.model.device = self.device
+        self.model.args = self.args
+
+        freeze_list = self.args.freeze
+
+        freeze_layer_names = [f"model.{x}." for x in freeze_list]
+        self.freeze_layer_names = freeze_layer_names
+        for k, v in self.named_parameters():
+            if any(x in k for x in freeze_layer_names):
+                print(f"Freezing layer '{k}'")
+                v.requires_grad = False
+            elif not v.requires_grad and v.dtype.is_floating_point:  # only floating point Tensor can require gradients
+                print(f"setting 'requires_grad=True' for frozen layer '{k}'. ")
+                v.requires_grad = True
+
+        self.is_encoder = not is_frozen(self.model.encoder)
+        self.is_decoder = not is_frozen(self.model.decoder)
+        self.trainer.accumulate_grad_batches = max(round(self.args.nbs / self.batch_size), 1)
+
     def configure_optimizers(self) -> OptimizerLRScheduler:
         optimizers, schedulers = [], []
 
@@ -145,26 +165,6 @@ class BaseTrainer(LightningModule):
             schedulers.append(self.decoder_scheduler)
 
         return optimizers, schedulers
-
-    def configure_model(self) -> None:
-        self.model.device = self.device
-        self.model.args = self.args
-
-        freeze_list = self.args.freeze
-
-        freeze_layer_names = [f"model.{x}." for x in freeze_list]
-        self.freeze_layer_names = freeze_layer_names
-        for k, v in self.named_parameters():
-            if any(x in k for x in freeze_layer_names):
-                print(f"Freezing layer '{k}'")
-                v.requires_grad = False
-            elif not v.requires_grad and v.dtype.is_floating_point:  # only floating point Tensor can require gradients
-                print(f"setting 'requires_grad=True' for frozen layer '{k}'. ")
-                v.requires_grad = True
-
-        self.is_encoder = not is_frozen(self.model.encoder)
-        self.is_decoder = not is_frozen(self.model.decoder)
-        self.trainer.accumulate_grad_batches = max(round(self.args.nbs / self.batch_size), 1)
 
     def on_train_start(self) -> None:
         self._start_tensorboard()

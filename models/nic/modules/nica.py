@@ -207,9 +207,9 @@ class DecoderWithAttention(nn.Module):
         return predictions, encoded_captions, decode_lengths, alphas, sort_ind
 
 
-class Sat(nn.Module):
+class Nica(nn.Module):
     def __init__(self, cfg):
-        super(Sat, self).__init__()
+        super(Nica, self).__init__()
 
         attention_dim = cfg['attention_dim']
         embed_dim = cfg['embed_dim']

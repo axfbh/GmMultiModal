@@ -81,9 +81,9 @@ class LSTMOtm(nn.Module):
         return predictions, decode_lengths, sort_ind
 
 
-class Sat(nn.Module):
+class Nic(nn.Module):
     def __init__(self, cfg):
-        super(Sat, self).__init__()
+        super(Nic, self).__init__()
 
         encoder_dim = cfg['encoder_dim']
         decoder_dim = cfg['decoder_dim']

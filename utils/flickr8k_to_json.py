@@ -56,15 +56,15 @@ def create_flickr8_json(token_path, train_path, val_path, test_path):
             tmp['sentences'] = sentences
             flick_8k_json['images'].append(tmp)
 
-    with open("caption_data/dataset_flick_8k.json", "w") as f:
+    with open("../caption_data/dataset_flick_8k.json", "w") as f:
         json.dump(flick_8k_json, f)
 
 
 if __name__ == '__main__':
     create_flickr8_json(
-        token_path=r"E:\dataset\Flickr8k and Flickr8kCN\Flickr8k.lemma.token.txt",
-        train_path=r"E:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.trainImages.txt",
-        val_path=r"E:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.devImages.txt",
-        test_path=r"E:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.testImages.txt"
+        token_path=r"D:\dataset\Flickr8k and Flickr8kCN\Flickr8k.lemma.token.txt",
+        train_path=r"D:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.trainImages.txt",
+        val_path=r"D:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.devImages.txt",
+        test_path=r"D:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.testImages.txt"
 
     )

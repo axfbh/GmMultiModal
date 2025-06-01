@@ -1,10 +1,10 @@
 from engine.model import Model
-from models.sat.caption.train import CaptionTrainer
-from models.sat.modules import Sat
+from models.nic.caption.train import CaptionTrainer
+from models.nic.modules import Nica, Nic
 
 
-class SAT(Model):
-    def __init__(self, model="sat.pt", task=None):
+class NIC(Model):
+    def __init__(self, model="nic.pt", task=None):
         super().__init__(model=model, task=task)
 
     @property
@@ -13,7 +13,8 @@ class SAT(Model):
         return {
             "caption": {
                 "model": {
-                    'sat': Sat,
+                    'nic': Nic,
+                    'nica': Nica,
                 },
                 "trainer": CaptionTrainer,
             },

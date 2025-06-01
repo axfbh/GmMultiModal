@@ -291,9 +291,9 @@ def accuracy(scores, targets, k):
 if __name__ == '__main__':
     # Create input files (along with word map)
     create_input_files(dataset='flickr8k',
-                       karpathy_json_path='./caption_data/dataset_flick_8k.json',
-                       image_folder=r'E:\dataset\Flickr8k and Flickr8kCN\Flicker8k_Dataset',
+                       karpathy_json_path='../caption_data/dataset_flick_8k.json',
+                       image_folder=r'D:\dataset\Flickr8k and Flickr8kCN\Flicker8k_Dataset',
                        captions_per_image=5,
                        min_word_freq=5,
-                       output_folder='./caption_data',
+                       output_folder='../caption_data',
                        max_len=50)

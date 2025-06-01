@@ -2,6 +2,7 @@ encoder_dim: 1000
 
 decoder_dim: 512
 
+embed_dim: 1000
+
 vocab_size: 2190
 
-embed_dim: 1000
