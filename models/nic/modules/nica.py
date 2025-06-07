@@ -1,7 +1,8 @@
 import torch
 from torch import nn
-from torchvision.ops.misc import FrozenBatchNorm2d
 from torch.nn.utils.rnn import pack_padded_sequence
+
+from torchvision.ops.misc import FrozenBatchNorm2d
 
 from nn.backbone import Backbone
 
@@ -73,6 +74,7 @@ class Attention(nn.Module):
         # fatt
         att1 = self.encoder_att(encoder_out)  # (batch_size, num_pixels, attention_dim)
         att2 = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
+        # MLP
         att = self.full_att(self.relu(att1 + att2.unsqueeze(1))).squeeze(2)  # (batch_size, num_pixels)
         # 位置权重
         alpha = self.softmax(att)  # (batch_size, num_pixels)
@@ -112,6 +114,8 @@ class DecoderWithAttention(nn.Module):
         self.decode_step = nn.LSTMCell(embed_dim + encoder_dim, decoder_dim, bias=True)  # decoding LSTMCell
         self.init_h = nn.Linear(encoder_dim, decoder_dim)  # linear layer to find initial hidden state of LSTMCell
         self.init_c = nn.Linear(encoder_dim, decoder_dim)  # linear layer to find initial cell state of LSTMCell
+        self.Lh = nn.Linear(decoder_dim, embed_dim)
+        self.Lz = nn.Linear(encoder_dim, embed_dim)
         self.f_beta = nn.Linear(decoder_dim, encoder_dim)  # linear layer to create a sigmoid-activated gate
         self.sigmoid = nn.Sigmoid()
         self.fc = nn.Linear(decoder_dim, vocab_size)  # linear layer to find scores over vocabulary
@@ -150,7 +154,9 @@ class DecoderWithAttention(nn.Module):
         :return: hidden state, cell state
         """
         mean_encoder_out = encoder_out.mean(dim=1)
+        # MLP
         h = self.init_h(mean_encoder_out)  # (batch_size, decoder_dim)
+        # MLP
         c = self.init_c(mean_encoder_out)
         return h, c
 
@@ -186,6 +192,7 @@ class DecoderWithAttention(nn.Module):
 
         # We won't decode at the <end> position, since we've finished generating as soon as we generate <end>
         # So, decoding lengths are actual lengths - 1
+        # 剔除 <end>
         decode_lengths = (caption_lengths - 1).tolist()
 
         # Create tensors to hold word predicion scores and alphas
@@ -195,19 +202,22 @@ class DecoderWithAttention(nn.Module):
         # At each time-step, decode by
         # attention-weighing the encoder's output based on the decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word and the attention weighted encoding
+        Ey = torch.zeros((batch_size, self.embed_dim), dtype=embeddings.dtype, device=embeddings.device)
         for t in range(max(decode_lengths)):
             batch_size_t = sum([l > t for l in decode_lengths])
             z, alpha = self.attention(encoder_out[:batch_size_t], h[:batch_size_t])
+            # beta
             beta = self.sigmoid(self.f_beta(h[:batch_size_t]))  # gating scalar, (batch_size_t, encoder_dim)
-            phi = beta * z
+            z = beta * z
             h, c = self.decode_step(
-                # E + h + z
-                torch.cat([embeddings[:batch_size_t, t, :], phi], dim=1),
+                # cat(E_y(t-1), h_(t-1), z(t))
+                torch.cat([embeddings[:batch_size_t, t, :], z], dim=1),
                 (h[:batch_size_t], c[:batch_size_t]))  # (batch_size_t, decoder_dim)
-            # nt = Lo(E + h + z)
-            preds = self.fc(self.dropout(h))  # (batch_size_t, vocab_size)
+            # p = Lo(E_y(t-1) + h_(t-1) + z(t))
+            preds = self.fc(Ey[:batch_size_t] + self.Lh(h) + self.Lz(z))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
             alphas[:batch_size_t, t, :] = alpha
+            Ey[:batch_size_t] = embeddings[:batch_size_t, t, :]
 
         return predictions, encoded_captions, decode_lengths, alphas, sort_ind
 
@@ -240,6 +250,10 @@ class Nica(nn.Module):
         scores, caps_sorted, decode_lengths, alphas, sort_ind = self.decoder(encoder_out, caps, cap_lens)
 
         if self.training:
+            # 剔除 <start>
+            # 推理的时候输入 <start> ，需要预测下一个词，且最后第二个词输入时，需要预测 <end>
+            # scores : <start>  a   b   c
+            # target :    a     b   c  <end>
             targets = caps_sorted[:, 1:]
             scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data.to(self.device)
             targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data.to(self.device)
