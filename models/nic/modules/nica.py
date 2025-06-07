@@ -114,8 +114,8 @@ class DecoderWithAttention(nn.Module):
         self.decode_step = nn.LSTMCell(embed_dim + encoder_dim, decoder_dim, bias=True)  # decoding LSTMCell
         self.init_h = nn.Linear(encoder_dim, decoder_dim)  # linear layer to find initial hidden state of LSTMCell
         self.init_c = nn.Linear(encoder_dim, decoder_dim)  # linear layer to find initial cell state of LSTMCell
-        self.Lh = nn.Linear(decoder_dim, embed_dim)
-        self.Lz = nn.Linear(encoder_dim, embed_dim)
+        self.lh = nn.Linear(decoder_dim, embed_dim)
+        self.lz = nn.Linear(encoder_dim, embed_dim)
         self.f_beta = nn.Linear(decoder_dim, encoder_dim)  # linear layer to create a sigmoid-activated gate
         self.sigmoid = nn.Sigmoid()
         self.fc = nn.Linear(decoder_dim, vocab_size)  # linear layer to find scores over vocabulary
@@ -172,7 +172,6 @@ class DecoderWithAttention(nn.Module):
 
         batch_size = encoder_out.size(0)
         encoder_dim = encoder_out.size(-1)
-        vocab_size = self.vocab_size
         device = encoder_out.device
 
         # Flatten image
@@ -196,25 +195,26 @@ class DecoderWithAttention(nn.Module):
         decode_lengths = (caption_lengths - 1).tolist()
 
         # Create tensors to hold word predicion scores and alphas
-        predictions = torch.zeros(batch_size, max(decode_lengths), vocab_size).to(device)
+        predictions = torch.zeros(batch_size, max(decode_lengths), self.vocab_size).to(device)
         alphas = torch.zeros(batch_size, max(decode_lengths), num_pixels).to(device)
+        Ey = torch.zeros((batch_size, self.embed_dim), dtype=embeddings.dtype, device=embeddings.device)
 
         # At each time-step, decode by
         # attention-weighing the encoder's output based on the decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word and the attention weighted encoding
-        Ey = torch.zeros((batch_size, self.embed_dim), dtype=embeddings.dtype, device=embeddings.device)
         for t in range(max(decode_lengths)):
             batch_size_t = sum([l > t for l in decode_lengths])
             z, alpha = self.attention(encoder_out[:batch_size_t], h[:batch_size_t])
             # beta
             beta = self.sigmoid(self.f_beta(h[:batch_size_t]))  # gating scalar, (batch_size_t, encoder_dim)
             z = beta * z
+            # cat(E_y(t-1), h_(t-1), z(t))
             h, c = self.decode_step(
-                # cat(E_y(t-1), h_(t-1), z(t))
+                # Ey-1 有疑惑
                 torch.cat([embeddings[:batch_size_t, t, :], z], dim=1),
                 (h[:batch_size_t], c[:batch_size_t]))  # (batch_size_t, decoder_dim)
-            # p = Lo(E_y(t-1) + h_(t-1) + z(t))
-            preds = self.fc(Ey[:batch_size_t] + self.Lh(h) + self.Lz(z))  # (batch_size_t, vocab_size)
+            # p = Lo(E_y(t-1) + Lhh_(t) + Lzz(t))
+            preds = self.fc(Ey[:batch_size_t] + self.lh(h) + self.lz(z))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
             alphas[:batch_size_t, t, :] = alpha
             Ey[:batch_size_t] = embeddings[:batch_size_t, t, :]
