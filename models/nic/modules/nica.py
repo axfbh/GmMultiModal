@@ -129,23 +129,6 @@ class DecoderWithAttention(nn.Module):
         self.fc.bias.data.fill_(0)
         self.fc.weight.data.uniform_(-0.1, 0.1)
 
-    def load_pretrained_embeddings(self, embeddings):
-        """
-        Loads embedding layer with pre-trained embeddings.
-
-        :param embeddings: pre-trained embeddings
-        """
-        self.embedding.weight = nn.Parameter(embeddings)
-
-    def fine_tune_embeddings(self, fine_tune=True):
-        """
-        Allow fine-tuning of embedding layer? (Only makes sense to not-allow if using pre-trained embeddings).
-
-        :param fine_tune: Allow?
-        """
-        for p in self.embedding.parameters():
-            p.requires_grad = fine_tune
-
     def init_hidden_state(self, encoder_out):
         """
         Creates the initial hidden and cell states for the decoder's LSTM based on the encoded images.
@@ -187,6 +170,7 @@ class DecoderWithAttention(nn.Module):
         embeddings = self.embedding(encoded_captions)  # (batch_size, max_caption_length, embed_dim)
 
         # Initialize LSTM state
+        # h-1, c-1
         h, c = self.init_hidden_state(encoder_out)  # (batch_size, decoder_dim)
 
         # We won't decode at the <end> position, since we've finished generating as soon as we generate <end>
@@ -205,19 +189,20 @@ class DecoderWithAttention(nn.Module):
         for t in range(max(decode_lengths)):
             batch_size_t = sum([l > t for l in decode_lengths])
             z, alpha = self.attention(encoder_out[:batch_size_t], h[:batch_size_t])
+
             # beta
             beta = self.sigmoid(self.f_beta(h[:batch_size_t]))  # gating scalar, (batch_size_t, encoder_dim)
             z = beta * z
+
             # cat(E_y(t-1), h_(t-1), z(t))
             h, c = self.decode_step(
-                # Ey-1 有疑惑
                 torch.cat([embeddings[:batch_size_t, t, :], z], dim=1),
                 (h[:batch_size_t], c[:batch_size_t]))  # (batch_size_t, decoder_dim)
+
             # p = Lo(E_y(t-1) + Lhh_(t) + Lzz(t))
-            preds = self.fc(Ey[:batch_size_t] + self.lh(h) + self.lz(z))  # (batch_size_t, vocab_size)
+            preds = self.fc(embeddings[:batch_size_t, t, :] + self.lh(h) + self.lz(z))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
             alphas[:batch_size_t, t, :] = alpha
-            Ey[:batch_size_t] = embeddings[:batch_size_t, t, :]
 
         return predictions, encoded_captions, decode_lengths, alphas, sort_ind
 
