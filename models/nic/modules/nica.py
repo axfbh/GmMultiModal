@@ -194,11 +194,13 @@ class DecoderWithAttention(nn.Module):
             beta = self.sigmoid(self.f_beta(h[:batch_size_t]))  # gating scalar, (batch_size_t, encoder_dim)
             z = beta * z
 
+            # h0
             # cat(E_y(t-1), h_(t-1), z(t))
             h, c = self.decode_step(
                 torch.cat([embeddings[:batch_size_t, t, :], z], dim=1),
                 (h[:batch_size_t], c[:batch_size_t]))  # (batch_size_t, decoder_dim)
 
+            # h1
             # p = Lo(E_y(t-1) + Lhh_(t) + Lzz(t))
             preds = self.fc(embeddings[:batch_size_t, t, :] + self.lh(h) + self.lz(z))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
@@ -237,8 +239,8 @@ class Nica(nn.Module):
         if self.training:
             # 剔除 <start>
             # 推理的时候输入 <start> ，需要预测下一个词，且最后第二个词输入时，需要预测 <end>
-            # scores : <start>  a   b   c
-            # target :    a     b   c  <end>
+            # scores :   a   b   c  <end>
+            # target :   a   b   c  <end>
             targets = caps_sorted[:, 1:]
             scores = pack_padded_sequence(scores, decode_lengths, batch_first=True).data.to(self.device)
             targets = pack_padded_sequence(targets, decode_lengths, batch_first=True).data.to(self.device)

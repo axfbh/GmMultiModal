@@ -74,8 +74,9 @@ class LSTMOtm(nn.Module):
         for t in range(max(decode_lengths)):
             # 由于排序后，长的在前短的在后，由于batch输入需要padding，找出截止到目前没padding的batch
             batch_size_t = sum([l > t for l in decode_lengths])
+            # h0
             h, c = self.hidden_state(embeddings[:batch_size_t, t], (h[:batch_size_t], c[:batch_size_t]))
-
+            # h1
             preds = self.fc(self.dropout(h))  # (batch_size_t, vocab_size)
             predictions[:batch_size_t, t, :] = preds
         return predictions, decode_lengths, sort_ind
