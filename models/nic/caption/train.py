@@ -6,7 +6,7 @@ from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
 
 from engine.trainer import BaseTrainer
 
-from data.flickr8k_dataset import build_flickr8k_dataset, build_dataloader
+from data.dataset import build_flickr8k_dataset, build_dataloader
 
 
 # 先执行 BaseTrainer，从 BaseTrainer super 跳到执行 DetectionValidator
@@ -15,14 +15,14 @@ class CaptionTrainer(BaseTrainer):
     def __init__(self, cfg):
         super().__init__(cfg)
 
-    def build_dataset(self, img_path, ann_path, mode="train"):
-        return build_flickr8k_dataset(img_path, ann_path)
+    def build_dataset(self, data_path, mode="train"):
+        return build_flickr8k_dataset(data_path, self.args.imgsz, mode)
 
     def setup(self, stage: str) -> None:
-        self.train_dataset = self.build_dataset(self.train_set['data_folder'], self.train_set['data_name'], "TRAIN")
+        self.train_dataset = self.build_dataset(self.train_set, 'train')
 
         if self.val_set is not None:
-            self.val_dataset = self.build_dataset(self.val_set['data_folder'], self.val_set['data_name'], "VAL")
+            self.val_dataset = self.build_dataset(self.val_set, 'val')
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         self.train_loader = build_dataloader(self.train_dataset, self.batch_size,

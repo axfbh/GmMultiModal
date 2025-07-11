@@ -1,3 +1,3 @@
-train:
-  data_folder: './caption_data'
-  data_name: 'flickr8k_5_cap_per_img_5_min_word_freq'
+train: G:\c\GmMultiModal\datasets\train.txt
+val: G:\c\GmMultiModal\datasets\val.txt
+test: G:\c\GmMultiModal\datasets\test.txt
