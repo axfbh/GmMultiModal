@@ -86,11 +86,13 @@ class LitProgressBar(ProgressBar):
                 loss_str.append(
                     "{}: {:.4f} ".format(name, meter)
                 )
-        for i, optim in enumerate(trainer.optimizers):
+        i = 0
+        for optim in trainer.optimizers:
             for pg in optim.param_groups:
                 loss_str.append(
                     "{}: {:.5f} ".format(f'LR{i}', pg['lr'])
                 )
+                i += 1
         return '  '.join(loss_str)
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
