@@ -15,14 +15,18 @@ class LongestMaxSize:
     def __init__(self,
                  max_size: Union[int, Sequence[int]] = 1024,
                  interpolation: int = cv2.INTER_LINEAR,
+                 format: Literal["coco", "pascal_voc", "albumentations", "yolo"] = "yolo",
                  p: float = 1):
         T = [
             A.LongestMaxSize(max_size=max_size, interpolation=interpolation, p=p)
         ]
 
         self.fit_transform = A.Compose(T)
+        self.fit_transform_box = A.Compose(T, A.BboxParams(format=format, label_fields=['labels']))
 
     def __call__(self, *args, **kwargs):
+        if 'bboxes' in kwargs.keys():
+            return self.fit_transform_box(*args, **kwargs)
         return self.fit_transform(*args, **kwargs)
 
 
@@ -41,4 +45,9 @@ class Normalize:
         self.fit_transform = A.Compose(T)
 
     def __call__(self, *args, **kwargs):
+        if 'bboxes' in kwargs.keys():
+            image = self.fit_transform(image=kwargs['image'])['image']
+            target = {"boxes": torch.as_tensor(kwargs['bboxes']),
+                      "labels": torch.as_tensor(kwargs['labels'], dtype=torch.long)}
+            return image, target
         return self.fit_transform(image=kwargs['image'])['image']
