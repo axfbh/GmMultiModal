@@ -23,15 +23,13 @@ class Model:
     def _new(self, cfg: str, task) -> None:
         cfg_dict = yaml_model_load(cfg)
         tokenizer = AutoTokenizer.from_pretrained(cfg_dict['tokenizer_path'], use_fast=True)
-        if "vocab_size" not in cfg_dict.keys():
-            cfg_dict['vocab_size'] = tokenizer.vocab_size
+        cfg_dict['vocab_size'] = tokenizer.vocab_size
 
         self.cfg = cfg
         self.task = task
         self.model = self._smart_load('model')[cfg_dict['model']](cfg_dict)
 
         self.overrides["model"] = self.cfg
-        self.overrides["tokenizer_path"] = cfg_dict['tokenizer_path']
         self.overrides["updates"] = 0
         self.overrides["task"] = self.task
 

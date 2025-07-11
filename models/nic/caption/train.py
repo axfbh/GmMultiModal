@@ -5,6 +5,7 @@ import torch
 from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
 
 from engine.trainer import BaseTrainer
+from engine.utils import yaml_model_load
 
 from data.dataset import build_flickr8k_dataset, build_dataloader
 from transformers import AutoTokenizer
@@ -17,7 +18,8 @@ class CaptionTrainer(BaseTrainer):
         super().__init__(cfg)
 
     def build_dataset(self, data_path, mode="train"):
-        tokenizer = AutoTokenizer.from_pretrained(self.args['tokenizer_path'], use_fast=True)
+        cfg_dict = yaml_model_load(self.args.model)
+        tokenizer = AutoTokenizer.from_pretrained(cfg_dict['tokenizer_path'], use_fast=True)
         return build_flickr8k_dataset(data_path, self.args.imgsz, self.args.max_len, tokenizer, mode)
 
     def setup(self, stage: str) -> None:
