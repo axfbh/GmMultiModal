@@ -18,8 +18,7 @@ class CaptionTrainer(BaseTrainer):
         super().__init__(cfg)
 
     def build_dataset(self, data_path, mode="train"):
-        cfg_dict = yaml_model_load(self.args.model)
-        tokenizer = AutoTokenizer.from_pretrained(cfg_dict['tokenizer_path'], use_fast=True)
+        tokenizer = AutoTokenizer.from_pretrained(self.args.tokenizer_path, use_fast=True)
         return build_flickr8k_dataset(data_path, self.args.imgsz, self.args.max_len, tokenizer, mode)
 
     def setup(self, stage: str) -> None:

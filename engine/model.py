@@ -31,6 +31,7 @@ class Model:
 
         self.overrides["model"] = self.cfg
         self.overrides["updates"] = 0
+        self.overrides["tokenizer_path"] = cfg_dict['tokenizer_path']
         self.overrides["task"] = self.task
 
     def _load(self, weights: str) -> None:
@@ -69,7 +70,7 @@ class Model:
 
     @staticmethod
     def _reset_ckpt_args(args: dict) -> dict:
-        include = {"imgsz", "data", "task", "single_cls"}
+        include = {"imgsz", "data", "task", "single_cls", "tokenizer_path"}
         return {k: v for k, v in args.items() if k in include}
 
     def _smart_load(self, key: str):
