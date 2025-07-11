@@ -7,6 +7,7 @@ from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
 from engine.trainer import BaseTrainer
 
 from data.dataset import build_flickr8k_dataset, build_dataloader
+from transformers import AutoTokenizer
 
 
 # 先执行 BaseTrainer，从 BaseTrainer super 跳到执行 DetectionValidator
@@ -16,7 +17,8 @@ class CaptionTrainer(BaseTrainer):
         super().__init__(cfg)
 
     def build_dataset(self, data_path, mode="train"):
-        return build_flickr8k_dataset(data_path, self.args.imgsz, mode)
+        tokenizer = AutoTokenizer.from_pretrained(self.args['tokenizer_path'], use_fast=True)
+        return build_flickr8k_dataset(data_path, self.args.imgsz, self.args.max_len, tokenizer, mode)
 
     def setup(self, stage: str) -> None:
         self.train_dataset = self.build_dataset(self.train_set, 'train')
@@ -39,17 +41,32 @@ class CaptionTrainer(BaseTrainer):
         :return:
         """
         images = batch[0]
+        captions = batch[1]
 
         dtype = images[0].dtype
         device = images[0].device
         c, _, _ = images[0].shape
-        batch_shape = [len(images), c, self.args.imgsz, self.args.imgsz]
-        tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
-        for i, (img, pad_img) in enumerate(zip(images, tensor)):
-            c, h, w = img.shape
-            pad_img[: c, : h, : w].copy_(img)
+        b = len(images)
+        max_len = self.args.max_len
+        batch_shape = [b, c, self.args.imgsz, self.args.imgsz]
 
-        batch[0] = tensor
-        batch[1] = torch.stack(batch[1])
-        batch[2] = torch.stack(batch[2])
+        pad_tensors = torch.zeros(batch_shape, dtype=dtype, device=device)
+        pad_captions = torch.full((b, max_len + 2),
+                                  fill_value=self.train_dataset.pad_id,
+                                  dtype=torch.long,
+                                  device=device)
+
+        for i, (img, cap, pad_tensor, pad_cap) in enumerate(zip(images, captions, pad_tensors, pad_captions)):
+            c, h, w = img.shape
+            cap_len = len(cap)
+            pad_tensor[: c, : h, : w].copy_(img)
+            # --------- 开始标记 ------------
+            pad_cap[0] = self.train_dataset.cls_id
+            pad_cap[1:cap_len + 1].copy_(cap)
+            # --------- 结束标记 ------------
+            pad_cap[cap_len + 1] = self.train_dataset.sep_id
+
+        batch[0] = pad_tensors
+        batch[1] = pad_captions
+        batch[2] = torch.tensor(batch[2])[:, None]
         return batch

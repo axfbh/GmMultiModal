@@ -94,7 +94,7 @@ class BaseTrainer(LightningModule):
 
         checkpoint_callback.FILE_EXTENSION = '.pt'
 
-        progress_bar_callback = LitProgressBar(100)
+        progress_bar_callback = LitProgressBar(20)
 
         csv_logger = CSVLogger(save_dir=f'./{self.args.project}/{self.args.task}', name=self.args.name)
         version = csv_logger._get_next_version()

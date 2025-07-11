@@ -22,23 +22,32 @@ class CaptionDataset(Dataset):
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
 
-    def __init__(self, data_path, imgsz, transforms):
+    def __init__(self, data_path, imgsz, max_len, tokenizer, transforms):
         """
-        :param data_folder: folder where data files are stored
-        :param data_name: base name of processed datasets
-        :param split: split, one of 'TRAIN', 'VAL', or 'TEST'
-        :param transform: image transform pipeline
+        :param data_path: folder where data files are stored
+        :param imgsz: image size
+        :param max_len: token length
+        :param tokenizer: text split
+        :param transforms: image transform pipeline
         """
         self.imgsz = imgsz
         self.data_path = data_path
         self.data_set = []
+
+        self.cls_id = tokenizer.cls_token_id
+        self.pad_id = tokenizer.pad_token_id
+        self.sep_id = tokenizer.sep_token_id
+
         with open(data_path, 'r', encoding='utf8') as fp:
             lines = fp.readlines()
 
-        for l in lines:
-            l = l.strip()
-            image_path, caption = l.split('\t')
-            self.data_set.append([image_path, caption])
+        for line in lines:
+            image_path, caption = line.strip().split('\t')
+            caption_ids = tokenizer.encode(caption, add_special_tokens=False)
+
+            caption_ids = caption_ids[:max_len]
+
+            self.data_set.append([image_path, caption_ids])
 
         self._transforms = transforms
         self._resize = augment.LongestMaxSize(imgsz)
@@ -52,25 +61,7 @@ class CaptionDataset(Dataset):
         if self._transforms is not None:
             batch = self._transforms(**batch)
 
-        return self._normalize(**batch), caption
-
-        # Remember, the Nth caption corresponds to the (N // captions_per_image)th image
-        # np_img = self.imgs[i // self.cpi]
-        # img = torch.FloatTensor(np_img / 255.)
-        # if self.transform is not None:
-        #     img = self.transform(img)
-        #
-        # caption = torch.LongTensor(self.captions[i])
-        #
-        # caplen = torch.LongTensor([self.caplens[i]])
-        #
-        # if self.split == 'TRAIN':
-        #     return img, caption, caplen
-        # else:
-        #     # For validation of testing, also return all 'captions_per_image' captions to find BLEU-4 score
-        #     all_captions = torch.LongTensor(
-        #         self.captions[((i // self.cpi) * self.cpi):(((i // self.cpi) * self.cpi) + self.cpi)])
-        #     return img, caption, caplen, all_captions, np_img
+        return self._normalize(**batch), torch.LongTensor(caption), len(caption) + 2
 
     def __len__(self):
         return len(self.data_set)
@@ -81,7 +72,7 @@ def collate_fn(batch):
     return tuple(batch)
 
 
-def build_flickr8k_dataset(data_path, imgsz, mode='train'):
+def build_flickr8k_dataset(data_path, imgsz, max_len, tokenizer, mode='train'):
     T = [
         A.Blur(p=0.01),
         A.MedianBlur(p=0.01),
@@ -96,6 +87,8 @@ def build_flickr8k_dataset(data_path, imgsz, mode='train'):
 
     return CaptionDataset(data_path,
                           imgsz,
+                          max_len,
+                          tokenizer,
                           transforms=transform if mode == 'train' else None)
 
 

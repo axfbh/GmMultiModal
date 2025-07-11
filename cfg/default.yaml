@@ -5,6 +5,7 @@
 epochs: 100 # (int) number of epochs to train for
 batch: 16 # (int) number of images per batch (-1 for AutoBatch)
 imgsz: 640 # (int | list) input images size as int for train and val modes, or list[w,h] for predict and export modes
+max_len: 100
 device: 0 # (int | str | list, optional) device to run on, i.e. cuda device=0 or device=0,1,2,3 or device=cpu
 workers: 3 # (int) number of worker threads for data loading (per RANK if DDP)
 project: runs # (str, optional) project name
