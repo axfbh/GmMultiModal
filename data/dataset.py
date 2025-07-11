@@ -7,7 +7,6 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 
 import albumentations as A
-from albumentations.pytorch import ToTensorV2
 
 from data import augment
 
@@ -42,9 +41,8 @@ class CaptionDataset(Dataset):
             self.data_set.append([image_path, caption])
 
         self._transforms = transforms
-        self._resize = A.LongestMaxSize(self.imgsz, p=1)
-        self._normalize = A.Normalize(p=1)
-        self._totensor = A.ToTensorV2()
+        self._resize = augment.LongestMaxSize(imgsz)
+        self._normalize = augment.Normalize()
 
     def __getitem__(self, i):
         image_path, caption = self.data_set[i]
@@ -54,8 +52,7 @@ class CaptionDataset(Dataset):
         if self._transforms is not None:
             batch = self._transforms(**batch)
 
-        batch = self._normalize(**batch)
-        return self._totensor(**batch)['image'], caption
+        return self._normalize(**batch), caption
 
         # Remember, the Nth caption corresponds to the (N // captions_per_image)th image
         # np_img = self.imgs[i // self.cpi]
