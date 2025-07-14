@@ -3,11 +3,11 @@ from typing import Any
 import torch
 
 from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
+from transformers import AutoTokenizer
 
 from engine.trainer import BaseTrainer
 
 from data.dataset import build_flickr8k_dataset, build_dataloader
-from transformers import AutoTokenizer
 from models.nic.caption.val import CaptionValidator
 
 
