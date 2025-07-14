@@ -32,7 +32,9 @@ class CaptionDataset(Dataset):
         """
         self.imgsz = imgsz
         self.data_path = data_path
-        self.data_set = []
+        self.images = []
+        self.captions = []
+        self.masks = []
 
         self.cls_id = tokenizer.cls_token_id
         self.pad_id = tokenizer.pad_token_id
@@ -42,29 +44,36 @@ class CaptionDataset(Dataset):
             lines = fp.readlines()
 
         for line in lines:
-            image_path, caption = line.strip().split('\t')
-            caption_ids = tokenizer.encode(caption, add_special_tokens=False)
-
-            caption_ids = caption_ids[:max_len]
-
-            self.data_set.append([image_path, caption_ids])
+            image_path, captions = line.strip().split('\t')
+            captions = captions.split('<sep>')[:-1]
+            tokens = tokenizer.batch_encode_plus(captions,
+                                                 padding='max_length',
+                                                 max_length=max_len,
+                                                 add_special_tokens=True,
+                                                 return_attention_mask=True,
+                                                 return_token_type_ids=False)
+            self.images.append(image_path)
+            self.captions.append(tokens['input_ids'])
+            self.masks.append(tokens['attention_mask'])
 
         self._transforms = transforms
         self._resize = augment.LongestMaxSize(imgsz)
         self._normalize = augment.Normalize()
 
     def __getitem__(self, i):
-        image_path, caption = self.data_set[i]
+        image_path = self.images[i]
+        caption = self.captions[i]
+        mask = self.masks[i]
         image = imread(image_path)
         batch = self._resize(image=image)
 
         if self._transforms is not None:
             batch = self._transforms(**batch)
 
-        return self._normalize(**batch), torch.LongTensor(caption), len(caption)
+        return self._normalize(**batch), caption, mask
 
     def __len__(self):
-        return len(self.data_set)
+        return len(self.images)
 
 
 def collate_fn(batch):

@@ -42,31 +42,33 @@ class CaptionValidator(BaseValidator):
         """
         images = batch[0]
         captions = batch[1]
+        masks = batch[2]
 
         dtype = images[0].dtype
         device = images[0].device
         c, _, _ = images[0].shape
         b = len(images)
-        max_len = self.args.max_len
-        batch_shape = [b, c, self.args.imgsz, self.args.imgsz]
 
-        pad_tensors = torch.zeros(batch_shape, dtype=dtype, device=device)
-        pad_captions = torch.full((b, max_len + 2),
-                                  fill_value=self.train_dataset.pad_id,
-                                  dtype=torch.long,
-                                  device=device)
+        res_tensors = []
+        res_caps = []
+        res_masks = []
 
-        for i, (img, cap, pad_tensor, pad_cap) in enumerate(zip(images, captions, pad_tensors, pad_captions)):
+        for i in range(b):
+            img = images[i]
+            cap = captions[i]
+            mask = masks[i]
+            cpi = len(mask)
+            cpi_shape = [cpi, c, self.args.imgsz, self.args.imgsz]
+            pad_tensor = torch.zeros(cpi_shape, dtype=dtype, device=device)
             c, h, w = img.shape
-            cap_len = len(cap)
-            pad_tensor[: c, : h, : w].copy_(img)
-            # --------- 开始标记 ------------
-            pad_cap[0] = self.train_dataset.cls_id
-            pad_cap[1:cap_len + 1].copy_(cap)
-            # --------- 结束标记 ------------
-            pad_cap[cap_len + 1] = self.train_dataset.sep_id
+            pad_tensor[:, :c, : h, : w].copy_(img)
+            res_tensors.append(pad_tensor)
+            res_caps.append(torch.as_tensor(cap))
+            res_masks.append(torch.as_tensor(mask))
 
-        batch[0] = pad_tensors
-        batch[1] = pad_captions
-        batch[2] = torch.tensor(batch[2])[:, None] + 2
-        return batch
+        batch[0] = torch.cat(res_tensors)
+        batch[1] = torch.cat(res_caps)
+        batch[2] = torch.cat(res_masks).sum(-1, keepdim=True)
+        batch = list(batch)
+        batch.append(res_caps)
+        return tuple(batch)

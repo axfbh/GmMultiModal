@@ -12,15 +12,15 @@ def process_caption(root, file, caption_path):
     lines_file = [l.strip() for l in lines_file]
     lines_caption = [l.strip() for l in lines_caption]
 
-    result = []
+    result = {k: [] for k in lines_file}
 
     for info in lines_caption:
         image_split = info.split(' ')
         image_info = image_split[0]
         image_cap = image_split[1:]
         image_path, translate_mode, image_ids = image_info.split('#')
-        if image_path in lines_file:
-            result.append([os.path.join(root, image_path), ''.join(image_cap)])
+        if image_path in result.keys():
+            result[image_path].append(''.join(image_cap) + '<sep>')
 
     return result
 
@@ -47,8 +47,10 @@ if __name__ == '__main__':
         num = len(result)
 
         with open(os.path.join(output_path, f'{mode}.txt'), 'w', encoding='utf8') as f:
-            for i, (image_path, caption) in enumerate(result):
+            for i, (image_path, caption) in enumerate(result.items()):
                 if (i + 1) == num:
-                    f.write('{}\t{}'.format(image_path, caption))
+                    f.write('{}\t'.format(os.path.join(root, image_path), caption))
+                    f.writelines(caption)
                 else:
-                    f.write('{}\t{}\n'.format(image_path, caption))
+                    f.write('{}\t'.format(os.path.join(root, image_path), caption))
+                    f.writelines(caption + ['\n'])
