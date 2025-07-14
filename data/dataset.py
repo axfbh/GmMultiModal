@@ -61,7 +61,7 @@ class CaptionDataset(Dataset):
         if self._transforms is not None:
             batch = self._transforms(**batch)
 
-        return self._normalize(**batch), torch.LongTensor(caption), len(caption) + 1
+        return self._normalize(**batch), torch.LongTensor(caption), len(caption)
 
     def __len__(self):
         return len(self.data_set)

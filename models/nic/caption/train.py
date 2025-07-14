@@ -69,5 +69,5 @@ class CaptionTrainer(BaseTrainer):
 
         batch[0] = pad_tensors
         batch[1] = pad_captions
-        batch[2] = torch.tensor(batch[2])[:, None]
+        batch[2] = torch.tensor(batch[2])[:, None] + 1
         return batch
