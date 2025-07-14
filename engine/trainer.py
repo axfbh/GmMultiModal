@@ -16,13 +16,14 @@ from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
 from utils.lightning_utils import LitProgressBar
 
 from engine.utils import ip_load
-from utils.torch_utils import smart_optimizer, ModelEMA, smart_distribute, select_device, is_frozen
+from utils.torch_utils import ModelEMA, smart_distribute, select_device, is_frozen
 
 
 class BaseTrainer(LightningModule):
     def __init__(self, cfg):
         super(BaseTrainer, self).__init__()
 
+        self.tokenizer = None
         self.freeze_layer_names = None
         self.ema = None
 

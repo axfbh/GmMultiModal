@@ -134,3 +134,14 @@ class LitProgressBar(ProgressBar):
                                  self.total_val_batches,
                                  meters=self.get_metrics(trainer, pl_module),
                                  memory=torch.cuda.max_memory_allocated() / MB))
+
+    def on_validation_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+        results = pl_module.evaluator.compute()
+
+        fitness = results.item()
+
+        pl_module.log('fitness', fitness)
+
+        print()
+        print('BLEU-4: ', results)
+        print()

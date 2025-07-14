@@ -2,18 +2,14 @@ from typing import Any
 
 import torch
 
-from lightning.pytorch.utilities.types import TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 
-from engine.trainer import BaseTrainer
-
+from engine.validator import BaseValidator
 from data.dataset import build_flickr8k_dataset, build_dataloader
 from transformers import AutoTokenizer
-from models.nic.caption.val import CaptionValidator
 
 
-# 先执行 BaseTrainer，从 BaseTrainer super 跳到执行 DetectionValidator
-# 因此 DetectionValidator 创建的重复信息会被，后续执行BaseTrainer覆盖，不影响训练时候的参数
-class CaptionTrainer(BaseTrainer, CaptionValidator):
+class CaptionValidator(BaseValidator):
 
     def build_dataset(self, data_path, mode="train"):
         return build_flickr8k_dataset(data_path, self.args.imgsz, self.args.max_len, self.tokenizer, mode)
@@ -21,17 +17,21 @@ class CaptionTrainer(BaseTrainer, CaptionValidator):
     def setup(self, stage: str) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained(self.args.tokenizer_path, use_fast=True)
 
-        self.train_dataset = self.build_dataset(self.train_set, 'train')
+        self.val_dataset = self.build_dataset(self.val_set, 'val')
 
-        if self.val_set is not None:
-            self.val_dataset = self.build_dataset(self.val_set, 'val')
+    def val_dataloader(self, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
+        self.val_loader = build_dataloader(self.val_dataset, self.batch_size * 2,
+                                           workers=self.args.workers,
+                                           shuffle=False,
+                                           persistent_workers=True)
+        return self.val_loader
 
-    def train_dataloader(self) -> TRAIN_DATALOADERS:
-        self.train_loader = build_dataloader(self.train_dataset, self.batch_size,
-                                             workers=self.args.workers,
-                                             shuffle=True,
-                                             persistent_workers=True)
-        return self.train_loader
+    def postprocess(self, preds):
+        """Apply Non-maximum suppression to prediction outputs."""
+
+        _, preds = torch.max(preds, dim=2)
+        preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
+        return preds
 
     def on_before_batch_transfer(self, batch: Any, dataloader_idx: int) -> Any:
         """

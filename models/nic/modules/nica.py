@@ -181,7 +181,6 @@ class DecoderWithAttention(nn.Module):
         # Create tensors to hold word predicion scores and alphas
         predictions = torch.zeros(batch_size, max(decode_lengths), self.vocab_size).to(device)
         alphas = torch.zeros(batch_size, max(decode_lengths), num_pixels).to(device)
-        Ey = torch.zeros((batch_size, self.embed_dim), dtype=embeddings.dtype, device=embeddings.device)
 
         # At each time-step, decode by
         # attention-weighing the encoder's output based on the decoder's previous hidden state output
@@ -249,7 +248,7 @@ class Nica(nn.Module):
             top5 = accuracy(scores, targets, 5)
             return loss, {'ce_loss': loss.item(), 'Top-5 Accuracy': top5}
 
-        return scores
+        return scores, caps_sorted
 
     def loss(self, preds, targets):
         if getattr(self, "criterion", None) is None:
