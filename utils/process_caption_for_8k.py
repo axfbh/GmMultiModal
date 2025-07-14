@@ -27,13 +27,13 @@ def process_caption(root, file, caption_path):
 
 if __name__ == '__main__':
     # 将caption处理成统一格式
-    root = r'G:\cgm\dataset\Flickr8k and Flickr8kCN\Flicker8k_Dataset'
+    root = r'E:\dataset\Flickr8k and Flickr8kCN\Flicker8k_Dataset'
 
-    caption_path = r"G:\cgm\dataset\Flickr8k and Flickr8kCN\flickr8kcn\data\flickr8kzhb.caption.txt"
+    caption_path = r"E:\dataset\Flickr8k and Flickr8kCN\flickr8kcn\data\flickr8kzhb.caption.txt"
 
-    files = [r"G:\cgm\dataset\Flickr8k and Flickr8kCN\Flickr_8k.trainImages.txt",
-             r"G:\cgm\dataset\Flickr8k and Flickr8kCN\Flickr_8k.devImages.txt",
-             r"G:\cgm\dataset\Flickr8k and Flickr8kCN\Flickr_8k.testImages.txt"]
+    files = [r"E:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.trainImages.txt",
+             r"E:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.devImages.txt",
+             r"E:\dataset\Flickr8k and Flickr8kCN\Flickr_8k.testImages.txt"]
 
     modes = ['train', 'val', 'test']
 

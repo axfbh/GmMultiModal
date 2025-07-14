@@ -231,6 +231,7 @@ class Nica(nn.Module):
         x = batch[0]
         caps = batch[1]
         cap_lens = batch[2]
+        all_caps = batch[3]
 
         encoder_out = self.encoder(x)
         scores, caps_sorted, decode_lengths, alphas, sort_ind = self.decoder(encoder_out, caps, cap_lens)

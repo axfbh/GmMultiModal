@@ -69,4 +69,6 @@ class CaptionTrainer(BaseTrainer, CaptionValidator):
         batch[0] = torch.cat(res_tensors)
         batch[1] = torch.cat(res_caps)
         batch[2] = torch.cat(res_masks).sum(-1, keepdim=True)
-        return batch
+        batch = list(batch)
+        batch.append(res_caps)
+        return tuple(batch)
