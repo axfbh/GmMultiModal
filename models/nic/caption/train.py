@@ -43,6 +43,7 @@ class CaptionTrainer(BaseTrainer, CaptionValidator):
         images = batch[0]
         captions = batch[1]
         masks = batch[2]
+        cap_ids = batch[3]
 
         dtype = images[0].dtype
         device = images[0].device
@@ -52,23 +53,24 @@ class CaptionTrainer(BaseTrainer, CaptionValidator):
         res_tensors = []
         res_caps = []
         res_masks = []
+        res_ids = []
 
         for i in range(b):
             img = images[i]
             cap = captions[i]
             mask = masks[i]
-            cpi = len(mask)
-            cpi_shape = [cpi, c, self.args.imgsz, self.args.imgsz]
+            cap_id = cap_ids[i]
+            cpi_shape = [cap_id, c, self.args.imgsz, self.args.imgsz]
             pad_tensor = torch.zeros(cpi_shape, dtype=dtype, device=device)
             c, h, w = img.shape
             pad_tensor[:, :c, : h, : w].copy_(img)
             res_tensors.append(pad_tensor)
             res_caps.append(torch.as_tensor(cap))
             res_masks.append(torch.as_tensor(mask))
+            res_ids.append(torch.ones(cap_id, dtype=torch.long, device=device) * i)
 
         batch[0] = torch.cat(res_tensors)
         batch[1] = torch.cat(res_caps)
         batch[2] = torch.cat(res_masks).sum(-1, keepdim=True)
-        batch = list(batch)
-        batch.append(res_caps)
+        batch[3] = torch.cat(res_ids)
         return tuple(batch)

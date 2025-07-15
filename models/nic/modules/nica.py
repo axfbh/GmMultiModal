@@ -231,7 +231,7 @@ class Nica(nn.Module):
         x = batch[0]
         caps = batch[1]
         cap_lens = batch[2]
-        all_caps = batch[3]
+        cap_ids = batch[3]
 
         encoder_out = self.encoder(x)
         scores, caps_sorted, decode_lengths, alphas, sort_ind = self.decoder(encoder_out, caps, cap_lens)
@@ -249,7 +249,16 @@ class Nica(nn.Module):
             top5 = accuracy(scores, targets, 5)
             return loss, {'ce_loss': loss.item(), 'Top-5 Accuracy': top5}
 
-        return scores, caps_sorted
+        cap_id = cap_ids[sort_ind]
+
+        id_store = [torch.where(cap_id == k)[0] for k in torch.unique(cap_id)]
+
+        tg_caps = []
+        for i in cap_id:
+            ind = id_store[i]
+            tg_caps.append(caps_sorted[ind])
+
+        return scores, tg_caps
 
     def loss(self, preds, targets):
         if getattr(self, "criterion", None) is None:

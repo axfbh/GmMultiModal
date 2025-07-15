@@ -64,8 +64,7 @@ class BaseValidator(LightningModule):
     def validation_step(self, batch, batch_idx):
         preds, targets = self.ema.ema(batch) if hasattr(self, 'ema') else self(batch)
         preds = self.postprocess(preds)
-        targets = self.tokenizer.batch_decode(targets, skip_special_tokens=True)
-        targets = [[t] for t in targets]
+        targets = [self.tokenizer.batch_decode(t, skip_special_tokens=True) for t in targets]
         self.evaluator.update(preds, targets)
 
     def postprocess(self, preds):

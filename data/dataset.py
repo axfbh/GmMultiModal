@@ -70,7 +70,7 @@ class CaptionDataset(Dataset):
         if self._transforms is not None:
             batch = self._transforms(**batch)
 
-        return self._normalize(**batch), caption, mask
+        return self._normalize(**batch), caption, mask, len(mask)
 
     def __len__(self):
         return len(self.images)
