@@ -8,4 +8,4 @@ attention_dim: 512
 
 encoded_image_size: 14
 
-tokenizer_path: "./data/tokenizer/bert-base-chinese"
+tokenizer_path: "./data/tokenizer/bert-base-uncased"

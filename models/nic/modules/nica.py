@@ -249,12 +249,12 @@ class Nica(nn.Module):
             top5 = accuracy(scores, targets, 5)
             return loss, {'ce_loss': loss.item(), 'Top-5 Accuracy': top5}
 
-        cap_id = cap_ids[sort_ind]
+        cap_ids = cap_ids[sort_ind]
 
-        id_store = [torch.where(cap_id == k)[0] for k in torch.unique(cap_id)]
+        id_store = [torch.where(cap_ids == k)[0] for k in torch.unique(cap_ids)]
 
         tg_caps = []
-        for i in cap_id:
+        for i in cap_ids:
             ind = id_store[i]
             tg_caps.append(caps_sorted[ind])
 

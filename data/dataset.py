@@ -92,7 +92,7 @@ def build_flickr8k_dataset(data_path, imgsz, max_len, tokenizer, mode='train'):
         A.ImageCompression(quality_range=(75, 100), p=0.0),
     ]
 
-    transform = A.Compose(T)
+    transform = A.Compose(T, p=0.0)
 
     return CaptionDataset(data_path,
                           imgsz,

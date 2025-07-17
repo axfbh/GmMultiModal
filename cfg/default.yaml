@@ -17,8 +17,8 @@ freeze: [ 'encoder' ]  # (str | list, optional) freeze name layers, or freeze li
 
 
 # Hyperparameters ------------------------------------------------------------------------------------------------------
-lre0: 0.0001 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
-lrd0: 0.0004 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
+lre0: 0.003 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
+lrd0: 0.003 # (float) initial learning rate (i.e. SGD=1E-2, Adam=1E-3)
 lrf: 0.1 # (float) final learning rate (lr0 * lrf)
 momentum: 0.9 # (float) SGD momentum/Adam beta1 (i.e. SGD=0.937, Adam=0.9)
 weight_decay: 0.0005 # (float) optimizer weight decay 5e-4
